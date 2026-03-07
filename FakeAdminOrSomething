@@ -1,0 +1,855 @@
+if game.PlaceId ~= 133500464897785 then
+    return
+end
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+local PREFIX = "!"
+
+local trapSpamming = false
+local trapGUI = nil
+local permittedPlayers = {}
+local stunLoopActive = false
+
+local numberWords = {
+    zero = 0, one = 1, two = 2, three = 3, four = 4,
+    five = 5, six = 6, seven = 7, eight = 8, nine = 9,
+    ten = 10, eleven = 11, twelve = 12, thirteen = 13, fourteen = 14,
+    fifteen = 15, sixteen = 16, seventeen = 17, eighteen = 18, nineteen = 19,
+    twenty = 20, thirty = 30, forty = 40, fifty = 50,
+    sixty = 60, seventy = 70, eighty = 80, ninety = 90,
+    hundred = 100, thousand = 1000, million = 1000000,
+    inf = math.huge, infinite = math.huge, infinity = math.huge
+}
+
+local trapNames = {
+    ["default"] = "Default Traps",
+    ["small"] = "Small Traps",
+    ["big"] = "Big Traps",
+    ["slow"] = "Slow Traps",
+    ["alarm"] = "Alarm Traps",
+    ["egg"] = "Egg Traps",
+    ["black hole"] = "Black Hole Traps",
+    ["blackhole"] = "Black Hole Traps",
+    ["teleporter"] = "Teleporters",
+    ["teleporters"] = "Teleporters"
+}
+
+local function parseNumber(text)
+    text = text:lower():gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    
+    local directNum = tonumber(text)
+    if directNum then return directNum end
+    
+    if numberWords[text] then
+        return numberWords[text]
+    end
+    
+    if text == "nil" then return 0 end
+    
+    local words = {}
+    for word in text:gmatch("%S+") do
+        table.insert(words, word)
+    end
+    
+    local result = ""
+    for i, word in ipairs(words) do
+        local num = numberWords[word]
+        if num and num < 100 then
+            result = result .. tostring(num)
+        elseif num and num >= 100 then
+            if result ~= "" then
+                local currentVal = tonumber(result) or 0
+                result = tostring(currentVal * num)
+            else
+                result = tostring(num)
+            end
+        end
+    end
+    
+    return tonumber(result) or 0
+end
+
+local function isModelStunned(model)
+    if not model or not model:FindFirstChild("Humanoid") then
+        return false
+    end
+    
+    local humanoid = model.Humanoid
+    for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
+        if track.Animation and track.Animation.Name == "Stun" then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function createTrapGUI()
+    if trapGUI then
+        trapGUI:Destroy()
+    end
+    
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SpammyWammyTrap"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
+    trapGUI = screenGui
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 300, 0, 120)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.3, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
+    
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 35)
+    titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    titleCorner.Parent = titleBar
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -40, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Spammy Wammy Trap :3"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+    
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 30, 0, 25)
+    closeButton.Position = UDim2.new(1, -35, 0, 5)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeButton.BorderSizePixel = 0
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 16
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleBar
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 6)
+    closeCorner.Parent = closeButton
+    
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Size = UDim2.new(1, -40, 0, 50)
+    toggleFrame.Position = UDim2.new(0, 20, 0, 50)
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Parent = mainFrame
+    
+    local toggleLabel = Instance.new("TextLabel")
+    toggleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+    toggleLabel.BackgroundTransparency = 1
+    toggleLabel.Text = "Trap Spam:"
+    toggleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleLabel.TextSize = 18
+    toggleLabel.Font = Enum.Font.GothamBold
+    toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    toggleLabel.Parent = toggleFrame
+    
+    local toggleBg = Instance.new("Frame")
+    toggleBg.Size = UDim2.new(0, 80, 0, 35)
+    toggleBg.Position = UDim2.new(1, -80, 0.5, -17.5)
+    toggleBg.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    toggleBg.BorderSizePixel = 0
+    toggleBg.Parent = toggleFrame
+    
+    local toggleBgCorner = Instance.new("UICorner")
+    toggleBgCorner.CornerRadius = UDim.new(0.5, 0)
+    toggleBgCorner.Parent = toggleBg
+    
+    local toggleIndicator = Instance.new("Frame")
+    toggleIndicator.Size = UDim2.new(0, 30, 0, 30)
+    toggleIndicator.Position = UDim2.new(1, -32.5, 0.5, -15)
+    toggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    toggleIndicator.BorderSizePixel = 0
+    toggleIndicator.Parent = toggleBg
+    
+    local indicatorCorner = Instance.new("UICorner")
+    indicatorCorner.CornerRadius = UDim.new(0.5, 0)
+    indicatorCorner.Parent = toggleIndicator
+    
+    local toggleText = Instance.new("TextLabel")
+    toggleText.Size = UDim2.new(1, -35, 1, 0)
+    toggleText.Position = UDim2.new(0, 10, 0, 0)
+    toggleText.BackgroundTransparency = 1
+    toggleText.Text = "ON"
+    toggleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleText.TextSize = 14
+    toggleText.Font = Enum.Font.GothamBold
+    toggleText.TextXAlignment = Enum.TextXAlignment.Left
+    toggleText.Parent = toggleBg
+    
+    local isOn = true
+    trapSpamming = true
+    
+    task.spawn(function()
+        while trapSpamming do
+            local args = {
+                [1] = "PlaceTrap"
+            }
+            ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
+            task.wait()
+        end
+    end)
+    
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(1, 0, 1, 0)
+    toggleButton.BackgroundTransparency = 1
+    toggleButton.Text = ""
+    toggleButton.Parent = toggleBg
+    
+    toggleButton.MouseButton1Click:Connect(function()
+        isOn = not isOn
+        trapSpamming = isOn
+        
+        if isOn then
+            TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 50)}):Play()
+            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -32.5, 0.5, -15)}):Play()
+            toggleText.Text = "ON"
+            
+            task.spawn(function()
+                while trapSpamming do
+                    local args = {
+                        [1] = "PlaceTrap"
+                    }
+                    ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
+                    task.wait()
+                end
+            end)
+        else
+            TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
+            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2.5, 0.5, -15)}):Play()
+            toggleText.Text = "OFF"
+        end
+    end)
+    
+    closeButton.MouseButton1Click:Connect(function()
+        trapSpamming = false
+        
+        local fadeOut = TweenService:Create(
+            mainFrame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1}
+        )
+        
+        local fadeOutTitle = TweenService:Create(
+            titleBar,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1}
+        )
+        
+        local fadeOutLabel = TweenService:Create(
+            titleLabel,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {TextTransparency = 1}
+        )
+        
+        local fadeOutClose = TweenService:Create(
+            closeButton,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1, TextTransparency = 1}
+        )
+        
+        local fadeOutToggleFrame = TweenService:Create(
+            toggleFrame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1}
+        )
+        
+        local fadeOutToggleLabel = TweenService:Create(
+            toggleLabel,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {TextTransparency = 1}
+        )
+        
+        local fadeOutToggleBg = TweenService:Create(
+            toggleBg,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1}
+        )
+        
+        local fadeOutToggleIndicator = TweenService:Create(
+            toggleIndicator,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1}
+        )
+        
+        local fadeOutToggleText = TweenService:Create(
+            toggleText,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {TextTransparency = 1}
+        )
+        
+        fadeOut:Play()
+        fadeOutTitle:Play()
+        fadeOutLabel:Play()
+        fadeOutClose:Play()
+        fadeOutToggleFrame:Play()
+        fadeOutToggleLabel:Play()
+        fadeOutToggleBg:Play()
+        fadeOutToggleIndicator:Play()
+        fadeOutToggleText:Play()
+        
+        fadeOut.Completed:Connect(function()
+            screenGui:Destroy()
+            trapGUI = nil
+        end)
+    end)
+    
+    local dragging = false
+    local dragInput
+    local dragStart
+    local startPos
+    
+    local function update(input)
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+    
+    mainFrame.BackgroundTransparency = 1
+    titleBar.BackgroundTransparency = 1
+    titleLabel.TextTransparency = 1
+    closeButton.BackgroundTransparency = 1
+    closeButton.TextTransparency = 1
+    toggleLabel.TextTransparency = 1
+    toggleBg.BackgroundTransparency = 1
+    toggleIndicator.BackgroundTransparency = 1
+    toggleText.TextTransparency = 1
+    
+    TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(titleBar, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(titleLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    TweenService:Create(closeButton, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+    TweenService:Create(toggleLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    TweenService:Create(toggleBg, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(toggleIndicator, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(toggleText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+end
+
+local commands = {
+    cmds = function(args)
+        print("Commands: !trap, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
+    end,
+    
+    trap = function(args)
+        createTrapGUI()
+    end,
+    
+    stun = function(args, exemptPlayer)
+        if #args == 0 then
+            return
+        end
+        
+        local durationText = table.concat(args, " ")
+        local duration = parseNumber(durationText)
+        
+        if not duration then
+            return
+        end
+        
+        stunLoopActive = true
+        
+        task.spawn(function()
+            local stunAttempts = 0
+            local maxAttempts = 50
+            
+            while stunLoopActive and stunAttempts < maxAttempts do
+                stunAttempts = stunAttempts + 1
+                
+                local exemptCharacters = {LocalPlayer.Character}
+                
+                for player, _ in pairs(permittedPlayers) do
+                    if player.Character then
+                        table.insert(exemptCharacters, player.Character)
+                    end
+                end
+                
+                local allStunned = true
+                
+                for _, model in pairs(workspace:GetDescendants()) do
+                    if model:IsA("Model") and model:FindFirstChild("Head") then
+                        local shouldExempt = false
+                        for _, exemptChar in pairs(exemptCharacters) do
+                            if model == exemptChar then
+                                shouldExempt = true
+                                break
+                            end
+                        end
+                        
+                        if not shouldExempt then
+                            local hasStun = false
+                            for _, descendant in pairs(model:GetDescendants()) do
+                                if descendant:IsA("Animation") and descendant.Name == "Stun" then
+                                    hasStun = true
+                                    break
+                                end
+                            end
+                            
+                            if hasStun then
+                                if not isModelStunned(model) then
+                                    allStunned = false
+                                    
+                                    local stunArgs = {
+                                        [1] = "Stun",
+                                        [2] = "Weapon",
+                                        [3] = model.Head,
+                                        [4] = false,
+                                        [5] = duration
+                                    }
+                                    ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(stunArgs))
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                if allStunned then
+                    stunLoopActive = false
+                    break
+                end
+                
+                task.wait(0.1)
+            end
+            
+            stunLoopActive = false
+        end)
+    end,
+    
+    kill = function(args)
+        if #args == 0 or args[1]:lower() ~= "traitor" then
+            return
+        end
+        
+        for _, model in pairs(workspace:GetChildren()) do
+            if model:IsA("Model") and model:FindFirstChild("Torso") then
+                local traitorValue = model:FindFirstChild("Traitor")
+                if traitorValue and traitorValue:IsA("StringValue") then
+                    local killArgs = {
+                        [1] = "Stun",
+                        [2] = "Weapon",
+                        [3] = model.Torso,
+                        [4] = false,
+                        [5] = 20
+                    }
+                    
+                    ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(killArgs))
+                end
+            end
+        end
+    end,
+    
+    equip = function(args)
+        if #args < 2 then
+            return
+        end
+        
+        local objectType = args[1]:lower()
+        
+        if objectType ~= "trap" then
+            return
+        end
+        
+        table.remove(args, 1)
+        local trapInput = table.concat(args, " "):lower()
+        
+        local trapName = nil
+        for key, value in pairs(trapNames) do
+            if trapInput:find(key) or key:find(trapInput) then
+                trapName = value
+                break
+            end
+        end
+        
+        if not trapName then
+            return
+        end
+        
+        local equipArgs = {
+            "EquippingTrap",
+            trapName
+        }
+        
+        LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
+    end,
+    
+    perm = function(args)
+        if #args < 1 then
+            return
+        end
+        
+        local targetName = args[1]:lower()
+        
+        local targetPlayer = nil
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Name:lower():find(targetName) or player.DisplayName:lower():find(targetName) then
+                targetPlayer = player
+                break
+            end
+        end
+        
+        if not targetPlayer then
+            return
+        end
+        
+        permittedPlayers[targetPlayer] = true
+    end,
+    
+    unperm = function(args)
+        if #args < 1 then
+            return
+        end
+        
+        local targetName = args[1]:lower()
+        
+        local targetPlayer = nil
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Name:lower():find(targetName) or player.DisplayName:lower():find(targetName) then
+                targetPlayer = player
+                break
+            end
+        end
+        
+        if not targetPlayer then
+            return
+        end
+        
+        permittedPlayers[targetPlayer] = nil
+    end
+}
+
+local function processCommand(message, fromGUI)
+    fromGUI = fromGUI or false
+    
+    if not fromGUI then
+        if message:sub(1, #PREFIX) ~= PREFIX then
+            return
+        end
+        message = message:sub(#PREFIX + 1)
+    end
+    
+    local args = message:split(" ")
+    local commandName = args[1]:lower()
+    
+    table.remove(args, 1)
+    
+    if commands[commandName] then
+        commands[commandName](args)
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(message)
+    processCommand(message, false)
+end)
+
+Players.PlayerAdded:Connect(function(player)
+    player.Chatted:Connect(function(message)
+        if message:sub(1, #PREFIX) == PREFIX then
+            local commandString = message:sub(#PREFIX + 1)
+            local args = commandString:split(" ")
+            local commandName = args[1]:lower()
+            
+            table.remove(args, 1)
+            
+            if permittedPlayers[player] then
+                if commandName == "stun" and commands.stun then
+                    commands.stun(args, player)
+                elseif commandName == "kill" and commands.kill then
+                    commands.kill(args)
+                end
+            end
+        end
+    end)
+end)
+
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        player.Chatted:Connect(function(message)
+            if message:sub(1, #PREFIX) == PREFIX then
+                local commandString = message:sub(#PREFIX + 1)
+                local args = commandString:split(" ")
+                local commandName = args[1]:lower()
+                
+                table.remove(args, 1)
+                
+                if permittedPlayers[player] then
+                    if commandName == "stun" and commands.stun then
+                        commands.stun(args, player)
+                    elseif commandName == "kill" and commands.kill then
+                        commands.kill(args)
+                    end
+                end
+            end
+        end)
+    end
+end
+
+print("Chat command handler loaded! Commands: !trap, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
+
+task.spawn(function()
+    while task.wait(0.1) do
+        for _, model in pairs(workspace:GetDescendants()) do
+            if model:IsA("Model") then
+                local bearTrap = model:FindFirstChild("BearTrap")
+                if bearTrap and bearTrap:IsA("BasePart") then
+                    for _, child in pairs(bearTrap:GetChildren()) do
+                        if child:IsA("TouchTransmitter") then
+                            child:Destroy()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+local function createCommandGUI()
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ChatCommandBar"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 350, 0, 100)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.1, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.ClipsDescendants = true
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+    
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 8)
+    titleCorner.Parent = titleBar
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "TitleLabel"
+    titleLabel.Size = UDim2.new(1, -70, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Chat-Command Bar"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+    
+    local minimizeButton = Instance.new("TextButton")
+    minimizeButton.Name = "MinimizeButton"
+    minimizeButton.Size = UDim2.new(0, 50, 0, 20)
+    minimizeButton.Position = UDim2.new(1, -60, 0.5, -10)
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    minimizeButton.BorderSizePixel = 0
+    minimizeButton.Text = "−"
+    minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minimizeButton.TextSize = 18
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.Parent = titleBar
+    
+    local minimizeCorner = Instance.new("UICorner")
+    minimizeCorner.CornerRadius = UDim.new(0, 4)
+    minimizeCorner.Parent = minimizeButton
+    
+    local isMinimized = false
+    
+    minimizeButton.MouseButton1Click:Connect(function()
+        isMinimized = not isMinimized
+        
+        if isMinimized then
+            mainFrame:TweenSize(
+                UDim2.new(0, 350, 0, 30),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Quad,
+                0.3,
+                true
+            )
+            minimizeButton.Text = "+"
+        else
+            mainFrame:TweenSize(
+                UDim2.new(0, 350, 0, 100),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Quad,
+                0.3,
+                true
+            )
+            minimizeButton.Text = "−"
+        end
+    end)
+    
+    local textBox = Instance.new("TextBox")
+    textBox.Name = "CommandBox"
+    textBox.Size = UDim2.new(1, -20, 0, 40)
+    textBox.Position = UDim2.new(0, 10, 0, 45)
+    textBox.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    textBox.BorderSizePixel = 0
+    textBox.Text = ""
+    textBox.PlaceholderText = "Enter command here (e.g., trap)"
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    textBox.TextSize = 14
+    textBox.Font = Enum.Font.Gotham
+    textBox.ClearTextOnFocus = false
+    textBox.TextXAlignment = Enum.TextXAlignment.Left
+    textBox.Parent = mainFrame
+    
+    local textBoxCorner = Instance.new("UICorner")
+    textBoxCorner.CornerRadius = UDim.new(0, 6)
+    textBoxCorner.Parent = textBox
+    
+    local textPadding = Instance.new("UIPadding")
+    textPadding.PaddingLeft = UDim.new(0, 10)
+    textPadding.PaddingRight = UDim.new(0, 10)
+    textPadding.Parent = textBox
+    
+    local dragging = false
+    local dragInput
+    local dragStart
+    local startPos
+    
+    local function update(input)
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+    
+    textBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local command = textBox.Text
+            if command ~= "" then
+                processCommand(command, true)
+                textBox.Text = ""
+            end
+        end
+    end)
+    
+    mainFrame.BackgroundTransparency = 1
+    titleBar.BackgroundTransparency = 1
+    titleLabel.TextTransparency = 1
+    minimizeButton.BackgroundTransparency = 1
+    minimizeButton.TextTransparency = 1
+    textBox.BackgroundTransparency = 1
+    textBox.TextTransparency = 1
+    
+    TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(titleBar, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(titleLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    TweenService:Create(minimizeButton, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+    TweenService:Create(textBox, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+end
+
+createCommandGUI()
+
+local StarterGui = game:GetService("StarterGui")
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local skinInventory = LocalPlayer:WaitForChild("SkinInventory")
+
+local skinsToAdd = {"Ren", "Pickle Rick (for minitoon)", "Mr.P", "Poley"}
+
+for _, skinName in ipairs(skinsToAdd) do
+    local stringValue = Instance.new("StringValue")
+    stringValue.Name = skinName
+    stringValue.Value = ""
+    stringValue.Parent = skinInventory
+
+    local starterSkinList = StarterGui:FindFirstChild("SkinList", true)
+    local playerSkinList = playerGui:FindFirstChild("SkinList", true)
+    if starterSkinList and playerSkinList then
+        local frame = starterSkinList:FindFirstChild(skinName)
+        if frame then
+            local clone = frame:Clone()
+            clone.Visible = true
+            clone.Parent = playerSkinList
+
+            local buyButton = clone:FindFirstChild("Buy")
+            if buyButton then
+                buyButton.Visible = true
+            end
+        end
+    end
+end
