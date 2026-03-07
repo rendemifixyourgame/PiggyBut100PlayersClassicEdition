@@ -89,7 +89,7 @@ local function isModelStunned(model)
     return false
 end
 
-local function createTrapGUI(rainbow)
+local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
     if trapGUI then
         trapGUI:Destroy()
     end
@@ -215,15 +215,28 @@ local function createTrapGUI(rainbow)
     local isOn = true
     trapSpamming = true
     
+    local function startCycle()
+        if rainbow and cycleRef and cycleIdxRef then
+            task.spawn(function()
+                while trapSpamming do
+                    local equipArgs = {"EquippingTrap", cycleRef[cycleIdxRef[1]]}
+                    LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
+                    cycleIdxRef[1] = cycleIdxRef[1] % #cycleRef + 1
+                    task.wait()
+                end
+            end)
+        end
+    end
+
     task.spawn(function()
         while trapSpamming do
-            local args = {
-                [1] = "PlaceTrap"
-            }
+            local args = {[1] = "PlaceTrap"}
             ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
             task.wait()
         end
     end)
+
+    startCycle()
     
     local toggleButton = Instance.new("TextButton")
     toggleButton.Size = UDim2.new(1, 0, 1, 0)
@@ -242,13 +255,13 @@ local function createTrapGUI(rainbow)
             
             task.spawn(function()
                 while trapSpamming do
-                    local args = {
-                        [1] = "PlaceTrap"
-                    }
+                    local args = {[1] = "PlaceTrap"}
                     ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
                     task.wait()
                 end
             end)
+
+            startCycle()
         else
             TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
             TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2.5, 0.5, -15)}):Play()
@@ -367,30 +380,17 @@ local commands = {
             end
         end
 
-        createTrapGUI(true)
-
-        task.spawn(function()
-            local idx = startIdx
-            while trapSpamming do
-                local equipArgs = {"EquippingTrap", cycle[idx]}
-                LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
-                idx = idx % #cycle + 1
-                task.wait()
-            end
-        end)
+        local cycleIdxRef = {startIdx}
+        createTrapGUI(true, cycle, cycleIdxRef)
     end,
     
     stun = function(args, exemptPlayer)
-        if #args == 0 then
-            return
-        end
+        if #args == 0 then return end
         
         local durationText = table.concat(args, " ")
         local duration = parseNumber(durationText)
         
-        if not duration then
-            return
-        end
+        if not duration then return end
         
         stunLoopActive = true
         
@@ -433,14 +433,7 @@ local commands = {
                             if hasStun then
                                 if not isModelStunned(model) then
                                     allStunned = false
-                                    
-                                    local stunArgs = {
-                                        [1] = "Stun",
-                                        [2] = "Weapon",
-                                        [3] = model.Head,
-                                        [4] = false,
-                                        [5] = duration
-                                    }
+                                    local stunArgs = {[1] = "Stun", [2] = "Weapon", [3] = model.Head, [4] = false, [5] = duration}
                                     ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(stunArgs))
                                 end
                             end
@@ -461,21 +454,13 @@ local commands = {
     end,
     
     kill = function(args)
-        if #args == 0 or args[1]:lower() ~= "traitor" then
-            return
-        end
+        if #args == 0 or args[1]:lower() ~= "traitor" then return end
         
         for _, model in pairs(workspace:GetChildren()) do
             if model:IsA("Model") and model:FindFirstChild("Torso") then
                 local traitorValue = model:FindFirstChild("Traitor")
                 if traitorValue and traitorValue:IsA("StringValue") then
-                    local killArgs = {
-                        [1] = "Stun",
-                        [2] = "Weapon",
-                        [3] = model.Torso,
-                        [4] = false,
-                        [5] = 20
-                    }
+                    local killArgs = {[1] = "Stun", [2] = "Weapon", [3] = model.Torso, [4] = false, [5] = 20}
                     ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(killArgs))
                 end
             end
@@ -483,15 +468,10 @@ local commands = {
     end,
     
     equip = function(args)
-        if #args < 2 then
-            return
-        end
+        if #args < 2 then return end
         
         local objectType = args[1]:lower()
-        
-        if objectType ~= "trap" then
-            return
-        end
+        if objectType ~= "trap" then return end
         
         table.remove(args, 1)
         local trapInput = table.concat(args, " "):lower()
@@ -504,25 +484,16 @@ local commands = {
             end
         end
         
-        if not trapName then
-            return
-        end
+        if not trapName then return end
         
-        local equipArgs = {
-            "EquippingTrap",
-            trapName
-        }
-        
+        local equipArgs = {"EquippingTrap", trapName}
         LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
     end,
     
     perm = function(args)
-        if #args < 1 then
-            return
-        end
+        if #args < 1 then return end
         
         local targetName = args[1]:lower()
-        
         local targetPlayer = nil
         for _, player in pairs(Players:GetPlayers()) do
             if player.Name:lower():find(targetName) or player.DisplayName:lower():find(targetName) then
@@ -531,20 +502,14 @@ local commands = {
             end
         end
         
-        if not targetPlayer then
-            return
-        end
-        
+        if not targetPlayer then return end
         permittedPlayers[targetPlayer] = true
     end,
     
     unperm = function(args)
-        if #args < 1 then
-            return
-        end
+        if #args < 1 then return end
         
         local targetName = args[1]:lower()
-        
         local targetPlayer = nil
         for _, player in pairs(Players:GetPlayers()) do
             if player.Name:lower():find(targetName) or player.DisplayName:lower():find(targetName) then
@@ -553,10 +518,7 @@ local commands = {
             end
         end
         
-        if not targetPlayer then
-            return
-        end
-        
+        if not targetPlayer then return end
         permittedPlayers[targetPlayer] = nil
     end
 }
@@ -565,15 +527,12 @@ local function processCommand(message, fromGUI)
     fromGUI = fromGUI or false
     
     if not fromGUI then
-        if message:sub(1, #PREFIX) ~= PREFIX then
-            return
-        end
+        if message:sub(1, #PREFIX) ~= PREFIX then return end
         message = message:sub(#PREFIX + 1)
     end
     
     local args = message:split(" ")
     local commandName = args[1]:lower()
-    
     table.remove(args, 1)
     
     if commands[commandName] then
@@ -591,7 +550,6 @@ Players.PlayerAdded:Connect(function(player)
             local commandString = message:sub(#PREFIX + 1)
             local args = commandString:split(" ")
             local commandName = args[1]:lower()
-            
             table.remove(args, 1)
             
             if permittedPlayers[player] then
@@ -612,7 +570,6 @@ for _, player in pairs(Players:GetPlayers()) do
                 local commandString = message:sub(#PREFIX + 1)
                 local args = commandString:split(" ")
                 local commandName = args[1]:lower()
-                
                 table.remove(args, 1)
                 
                 if permittedPlayers[player] then
@@ -717,7 +674,6 @@ local function createCommandGUI()
     
     minimizeButton.MouseButton1Click:Connect(function()
         isMinimized = not isMinimized
-        
         if isMinimized then
             mainFrame:TweenSize(UDim2.new(0, 350, 0, 30), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
             minimizeButton.Text = "+"
@@ -767,7 +723,6 @@ local function createCommandGUI()
             dragging = true
             dragStart = input.Position
             startPos = mainFrame.Position
-            
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
