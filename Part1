@@ -356,7 +356,7 @@ end
 
 local commands = {
     cmds = function(args)
-        print("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
+        print("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick !cmds")
     end,
 
     trap = function(args)
