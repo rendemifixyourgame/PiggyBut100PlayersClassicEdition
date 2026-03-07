@@ -636,7 +636,7 @@ _G.PiggyScript = {
 print("Chat command handler loaded! Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
 
 task.spawn(function()
-    while task.wait() do
+    while task.wait(0.1) do
         for _, model in pairs(workspace:GetDescendants()) do
             if model:IsA("Model") then
                 local bearTrap = model:FindFirstChild("BearTrap")
