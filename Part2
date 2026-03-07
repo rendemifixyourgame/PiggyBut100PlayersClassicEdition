@@ -281,7 +281,6 @@ local function startAutoclick()
         end
     end)
 end
-    end
 
     startAutoclick()
 
