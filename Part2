@@ -126,7 +126,7 @@ local function createAutoclickGUI()
     local function startAutoclick()
         task.spawn(function()
             local clickDetectors = {}
-            for _, desc in pairs(workspace.Map:GetDescendants()) do
+            for _, desc in pairs(workspace.GetDescendants()) do
                 if desc:IsA("ClickDetector") then
                     table.insert(clickDetectors, desc)
                 end
