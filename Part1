@@ -89,7 +89,7 @@ local function isModelStunned(model)
     return false
 end
 
-local function createTrapGUI()
+local function createTrapGUI(rainbow)
     if trapGUI then
         trapGUI:Destroy()
     end
@@ -131,22 +131,22 @@ local function createTrapGUI()
     titleLabel.Position = UDim2.new(0, 10, 0, 0)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = rainbow and "G4Y Trappy >~<" or "Spammy Wammy Trap :3"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-if rainbow then
-    task.spawn(function()
-        local hue = 0
-        while titleLabel and titleLabel.Parent do
-            hue = (hue + 0.005) % 1
-            titleLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
-            task.wait()
-        end
-    end)
-end
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     titleLabel.TextSize = 16
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = titleBar
+
+    if rainbow then
+        task.spawn(function()
+            local hue = 0
+            while titleLabel and titleLabel.Parent do
+                hue = (hue + 0.005) % 1
+                titleLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
+                task.wait()
+            end
+        end)
+    end
     
     local closeButton = Instance.new("TextButton")
     closeButton.Size = UDim2.new(0, 30, 0, 25)
@@ -259,59 +259,15 @@ end
     closeButton.MouseButton1Click:Connect(function()
         trapSpamming = false
         
-        local fadeOut = TweenService:Create(
-            mainFrame,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {BackgroundTransparency = 1}
-        )
-        
-        local fadeOutTitle = TweenService:Create(
-            titleBar,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {BackgroundTransparency = 1}
-        )
-        
-        local fadeOutLabel = TweenService:Create(
-            titleLabel,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {TextTransparency = 1}
-        )
-        
-        local fadeOutClose = TweenService:Create(
-            closeButton,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {BackgroundTransparency = 1, TextTransparency = 1}
-        )
-        
-        local fadeOutToggleFrame = TweenService:Create(
-            toggleFrame,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {BackgroundTransparency = 1}
-        )
-        
-        local fadeOutToggleLabel = TweenService:Create(
-            toggleLabel,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {TextTransparency = 1}
-        )
-        
-        local fadeOutToggleBg = TweenService:Create(
-            toggleBg,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {BackgroundTransparency = 1}
-        )
-        
-        local fadeOutToggleIndicator = TweenService:Create(
-            toggleIndicator,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {BackgroundTransparency = 1}
-        )
-        
-        local fadeOutToggleText = TweenService:Create(
-            toggleText,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {TextTransparency = 1}
-        )
+        local fadeOut = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+        local fadeOutTitle = TweenService:Create(titleBar, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+        local fadeOutLabel = TweenService:Create(titleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+        local fadeOutClose = TweenService:Create(closeButton, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1, TextTransparency = 1})
+        local fadeOutToggleFrame = TweenService:Create(toggleFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+        local fadeOutToggleLabel = TweenService:Create(toggleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+        local fadeOutToggleBg = TweenService:Create(toggleBg, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+        local fadeOutToggleIndicator = TweenService:Create(toggleIndicator, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+        local fadeOutToggleText = TweenService:Create(toggleText, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
         
         fadeOut:Play()
         fadeOutTitle:Play()
@@ -387,16 +343,42 @@ end
 
 local commands = {
     cmds = function(args)
-        print("Commands: !trap, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
+        print("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
     end,
-    
-    trap = function(args)
-    createTrapGUI(false)
-end,
 
-rainbow = function(args)
-    createTrapGUI(true)
-end,
+    trap = function(args)
+        createTrapGUI(false)
+    end,
+
+    rainbow = function(args)
+        local cycle = {
+            "Small Traps", "Default Traps", "Alarm Traps", "Big Traps",
+            "Slow Traps", "Teleporters", "Black Hole Traps", "Egg Traps"
+        }
+
+        local startIdx = 1
+        local currentTrap = LocalPlayer:FindFirstChild("EquippedTrap")
+        if currentTrap then
+            for i, trapName in ipairs(cycle) do
+                if trapName == currentTrap.Value then
+                    startIdx = i
+                    break
+                end
+            end
+        end
+
+        createTrapGUI(true)
+
+        task.spawn(function()
+            local idx = startIdx
+            while trapSpamming do
+                local equipArgs = {"EquippingTrap", cycle[idx]}
+                LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
+                idx = idx % #cycle + 1
+                task.wait(0.5)
+            end
+        end)
+    end,
     
     stun = function(args, exemptPlayer)
         if #args == 0 then
@@ -494,7 +476,6 @@ end,
                         [4] = false,
                         [5] = 20
                     }
-                    
                     ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(killArgs))
                 end
             end
@@ -652,7 +633,7 @@ _G.PiggyScript = {
     PREFIX = PREFIX
 }
 
-print("Commands: !trap, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user] , !forcefield [user] [size] [value] !cmds")
+print("Chat command handler loaded! Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
 
 task.spawn(function()
     while task.wait(0.1) do
@@ -738,22 +719,10 @@ local function createCommandGUI()
         isMinimized = not isMinimized
         
         if isMinimized then
-            mainFrame:TweenSize(
-                UDim2.new(0, 350, 0, 30),
-                Enum.EasingDirection.Out,
-                Enum.EasingStyle.Quad,
-                0.3,
-                true
-            )
+            mainFrame:TweenSize(UDim2.new(0, 350, 0, 30), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
             minimizeButton.Text = "+"
         else
-            mainFrame:TweenSize(
-                UDim2.new(0, 350, 0, 100),
-                Enum.EasingDirection.Out,
-                Enum.EasingStyle.Quad,
-                0.3,
-                true
-            )
+            mainFrame:TweenSize(UDim2.new(0, 350, 0, 100), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
             minimizeButton.Text = "−"
         end
     end)
