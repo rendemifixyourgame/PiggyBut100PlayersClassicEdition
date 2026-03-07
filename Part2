@@ -1,3 +1,4 @@
+
 if game.PlaceId ~= 133500464897785 then return end
 
 local Players = game:GetService("Players")
@@ -12,10 +13,13 @@ end
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
-local function isPiggy(player)
+local function isNonExempt(player)
     player = player or LocalPlayer
+    local folder = workspace:FindFirstChild("ReadyPlayers")
+    local inFolder = folder and folder:FindFirstChild(player.Name) ~= nil
     local char = player.Character
-    return char ~= nil and char:FindFirstChild("Traitor") ~= nil
+    local isTraitor = char and char:FindFirstChild("Traitor") ~= nil
+    return inFolder or isTraitor
 end
 
 local highlights = {}
@@ -24,7 +28,7 @@ local DOUBLE_TAP_TIME = 0.5
 
 local function isHighlightTarget(player)
     local permitted = getPermitted()
-    return player ~= LocalPlayer and not permitted[player] and not isPiggy(player)
+    return player ~= LocalPlayer and not isNonExempt(player) and not permitted[player]
 end
 
 local function clearHighlights()
@@ -84,7 +88,7 @@ end
 local mouse = LocalPlayer:GetMouse()
 
 local function handleTap()
-    if not isPiggy() then return end
+    if not isNonExempt() then return end
 
     local targetPlayer = getPlayerFromHit(mouse.Target)
 
@@ -134,18 +138,18 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 end)
 
-local wasPiggy = false
+local wasNonExempt = false
 RunService.Heartbeat:Connect(function()
-    local nowPiggy = isPiggy()
+    local nowNonExempt = isNonExempt()
 
-    if nowPiggy ~= wasPiggy then
-        if not nowPiggy then
+    if nowNonExempt ~= wasNonExempt then
+        if not nowNonExempt then
             clearHighlights()
         end
-        wasPiggy = nowPiggy
+        wasNonExempt = nowNonExempt
     end
 
-    if nowPiggy then
+    if nowNonExempt then
         updateHighlights()
     end
 end)
@@ -171,10 +175,7 @@ local function createForcefield(targetPlayer, size, stunDuration)
     local part = Instance.new("Part")
     part.Name = "Forcefield_" .. targetPlayer.Name
     part.Size = Vector3.new(size, size, size)
-    part.Shape = Enum.PartType.Ball
-    part.Material = Enum.Material.ForceField
-    part.Color = Color3.fromRGB(100, 200, 255)
-    part.Transparency = 0.3
+    part.Transparency = 1
     part.CanCollide = false
     part.Anchored = false
     part.CastShadow = false
@@ -229,21 +230,24 @@ local function parseForcefieldArgs(args, caller)
     caller = caller or LocalPlayer
 
     if #args == 0 then
-        return {caller}, 10, 5
+        return {caller}, 10, 20
     end
 
     local targets = {}
     local size = 10
-    local stunValue = 5
+    local stunValue = 20
     local idx = 1
     local first = args[1]:lower()
 
-    if first == "me" or first == caller.Name:lower() or first == caller.DisplayName:lower() then
+    if tonumber(args[1]) then
+        table.insert(targets, caller)
+        idx = 1
+    elseif first == "me" or first == caller.Name:lower() or first == caller.DisplayName:lower() then
         table.insert(targets, caller)
         idx = 2
     elseif first == "all" then
         for _, p in pairs(Players:GetPlayers()) do
-            if not isPiggy(p) then
+            if not isNonExempt(p) then
                 table.insert(targets, p)
             end
         end
@@ -267,7 +271,7 @@ local function parseForcefieldArgs(args, caller)
     end
 
     size = tonumber(args[idx]) or 10
-    stunValue = tonumber(args[idx + 1]) or 5
+    stunValue = tonumber(args[idx + 1]) or 20
 
     return targets, size, stunValue
 end
@@ -275,7 +279,7 @@ end
 local function handleForcefield(args, caller)
     caller = caller or LocalPlayer
 
-    if isPiggy(caller) then return end
+    if isNonExempt(caller) then return end
 
     local targets, size, stunValue = parseForcefieldArgs(args, caller)
     if not targets then return end
