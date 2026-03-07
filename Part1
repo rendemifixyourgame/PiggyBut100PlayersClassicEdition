@@ -130,8 +130,19 @@ local function createTrapGUI()
     titleLabel.Size = UDim2.new(1, -40, 1, 0)
     titleLabel.Position = UDim2.new(0, 10, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "Spammy Wammy Trap :3"
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.Text = rainbow and "G4Y Trappy >~<" or "Spammy Wammy Trap :3"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+if rainbow then
+    task.spawn(function()
+        local hue = 0
+        while titleLabel and titleLabel.Parent do
+            hue = (hue + 0.005) % 1
+            titleLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
+            task.wait()
+        end
+    end)
+end
     titleLabel.TextSize = 16
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -380,8 +391,12 @@ local commands = {
     end,
     
     trap = function(args)
-        createTrapGUI()
-    end,
+    createTrapGUI(false)
+end,
+
+rainbow = function(args)
+    createTrapGUI(true)
+end,
     
     stun = function(args, exemptPlayer)
         if #args == 0 then
