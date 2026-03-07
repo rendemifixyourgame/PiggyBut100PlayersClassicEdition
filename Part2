@@ -273,7 +273,7 @@ local function createAutoclickGUI()
         task.spawn(function()
             while autoclicking do
                 for _, desc in pairs(game:GetDescendants()) do
-                    if desc:IsA("TouchTransmitter") then
+                    if desc:IsA("ClickDetector") then
                         fireClickDetector(desc)
                     end
                 end
