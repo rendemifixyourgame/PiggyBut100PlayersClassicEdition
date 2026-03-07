@@ -637,7 +637,7 @@ _G.PiggyScript = {
     PREFIX = PREFIX
 }
 
-print("Chat command handler loaded! Commands: !trap, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
+print("Commands: !trap, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user] , !forcefield [user] [size] [value] !cmds")
 
 task.spawn(function()
     while task.wait(0.1) do
