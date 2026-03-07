@@ -269,18 +269,18 @@ local function createAutoclickGUI()
     local isOn = true
     autoclicking = true
 
-local function startAutoclick()
-    task.spawn(function()
-        while autoclicking do
-            for _, desc in pairs(game:GetDescendants()) do
-                if desc:IsA("ClickDetector") then
-                    fireclickdetector(desc)
+    local function startAutoclick()
+        task.spawn(function()
+            while autoclicking do
+                for _, desc in pairs(game:GetDescendants()) do
+                    if desc:IsA("ClickDetector") then
+                        fireclickdetector(desc)
+                    end
                 end
+                task.wait()
             end
-            task.wait()
-        end
-    end)
-end
+        end)
+    end
 
     startAutoclick()
 
