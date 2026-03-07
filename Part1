@@ -375,7 +375,7 @@ local commands = {
                 local equipArgs = {"EquippingTrap", cycle[idx]}
                 LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
                 idx = idx % #cycle + 1
-                task.wait(0.5)
+                task.wait()
             end
         end)
     end,
@@ -636,7 +636,7 @@ _G.PiggyScript = {
 print("Chat command handler loaded! Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
 
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait() do
         for _, model in pairs(workspace:GetDescendants()) do
             if model:IsA("Model") then
                 local bearTrap = model:FindFirstChild("BearTrap")
