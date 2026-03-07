@@ -285,6 +285,12 @@ local function handleForcefield(args, caller)
     end
 end
 
+if _G.PiggyScript and _G.PiggyScript.commands then
+    _G.PiggyScript.commands.forcefield = function(args)
+        handleForcefield(args, LocalPlayer)
+    end
+end
+
 LocalPlayer.Chatted:Connect(function(msg)
     if msg:sub(1, #PREFIX) ~= PREFIX then return end
     local body = msg:sub(#PREFIX + 1)
