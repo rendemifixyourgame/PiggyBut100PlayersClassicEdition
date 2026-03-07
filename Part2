@@ -274,7 +274,7 @@ local function createAutoclickGUI()
             while autoclicking do
                 for _, desc in pairs(game:GetDescendants()) do
                     if desc:IsA("ClickDetector") then
-                        fireClickDetector(desc)
+                        FireClickDetector(desc)
                     end
                 end
                 task.wait()
