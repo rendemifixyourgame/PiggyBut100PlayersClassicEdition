@@ -6,151 +6,6 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
-local function getPermitted()
-    return (_G.PiggyScript and _G.PiggyScript.permittedPlayers) or {}
-end
-
-local function isNonExempt(player)
-    player = player or LocalPlayer
-    local folder = workspace:FindFirstChild("ReadyPlayers")
-    local inFolder = folder and folder:FindFirstChild(player.Name) ~= nil
-    local char = player.Character
-    local isTraitor = char and char:FindFirstChild("Traitor") ~= nil
-    return inFolder or isTraitor
-end
-
-local highlights = {}
-local firstTap = { player = nil, time = 0 }
-local DOUBLE_TAP_TIME = 0.5
-
-local function isHighlightTarget(player)
-    local permitted = getPermitted()
-    return player ~= LocalPlayer and not isNonExempt(player) and not permitted[player]
-end
-
-local function clearHighlights()
-    for _, h in pairs(highlights) do
-        if h and h.Parent then h:Destroy() end
-    end
-    highlights = {}
-    firstTap = { player = nil, time = 0 }
-end
-
-local function setHighlightColor(player, color)
-    local h = highlights[player]
-    if h then
-        h.FillColor = color
-        h.OutlineColor = color
-    end
-end
-
-local function updateHighlights()
-    for _, player in pairs(Players:GetPlayers()) do
-        if isHighlightTarget(player) then
-            local char = player.Character
-            if char and not highlights[player] then
-                local h = Instance.new("Highlight")
-                h.FillColor = Color3.fromRGB(255, 255, 255)
-                h.OutlineColor = Color3.fromRGB(255, 255, 255)
-                h.FillTransparency = 0.5
-                h.OutlineTransparency = 0
-                h.Adornee = char
-                h.Parent = char
-                highlights[player] = h
-            elseif not char and highlights[player] then
-                if highlights[player].Parent then highlights[player]:Destroy() end
-                highlights[player] = nil
-            end
-        end
-    end
-
-    for player, h in pairs(highlights) do
-        if not player.Parent or not isHighlightTarget(player) then
-            if h and h.Parent then h:Destroy() end
-            highlights[player] = nil
-        end
-    end
-end
-
-local function getPlayerFromHit(hit)
-    if not hit then return nil end
-    for _, player in pairs(Players:GetPlayers()) do
-        if player.Character and hit:IsDescendantOf(player.Character) then
-            return player
-        end
-    end
-    return nil
-end
-
-local mouse = LocalPlayer:GetMouse()
-
-local function handleTap()
-    if not isNonExempt() then return end
-
-    local targetPlayer = getPlayerFromHit(mouse.Target)
-
-    if not targetPlayer or not highlights[targetPlayer] then
-        if firstTap.player then
-            setHighlightColor(firstTap.player, Color3.fromRGB(255, 255, 255))
-            firstTap = { player = nil, time = 0 }
-        end
-        return
-    end
-
-    local now = tick()
-
-    if firstTap.player == targetPlayer and (now - firstTap.time) <= DOUBLE_TAP_TIME then
-        setHighlightColor(targetPlayer, Color3.fromRGB(255, 240, 100))
-
-        local myChar = LocalPlayer.Character
-        local targetChar = targetPlayer.Character
-        if myChar and targetChar then
-            local myRoot = myChar:FindFirstChild("HumanoidRootPart")
-            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-            if myRoot and targetRoot then
-                myRoot.CFrame = targetRoot.CFrame
-            end
-        end
-
-        task.delay(0.3, function()
-            setHighlightColor(targetPlayer, Color3.fromRGB(255, 255, 255))
-        end)
-
-        firstTap = { player = nil, time = 0 }
-    else
-        if firstTap.player and firstTap.player ~= targetPlayer then
-            setHighlightColor(firstTap.player, Color3.fromRGB(255, 255, 255))
-        end
-        firstTap = { player = targetPlayer, time = now }
-        setHighlightColor(targetPlayer, Color3.fromRGB(255, 240, 100))
-    end
-end
-
-mouse.Button1Down:Connect(handleTap)
-
-UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
-    if input.UserInputType == Enum.UserInputType.Touch then
-        handleTap()
-    end
-end)
-
-local wasNonExempt = false
-RunService.Heartbeat:Connect(function()
-    local nowNonExempt = isNonExempt()
-
-    if nowNonExempt ~= wasNonExempt then
-        if not nowNonExempt then
-            clearHighlights()
-        end
-        wasNonExempt = nowNonExempt
-    end
-
-    if nowNonExempt then
-        updateHighlights()
-    end
-end)
-
 local autoclickGUI = nil
 local autoclicking = false
 
@@ -271,10 +126,17 @@ local function createAutoclickGUI()
 
     local function startAutoclick()
         task.spawn(function()
+            local clickDetectors = {}
+            for _, desc in pairs(game:GetDescendants()) do
+                if desc:IsA("ClickDetector") then
+                    table.insert(clickDetectors, desc)
+                end
+            end
+
             while autoclicking do
-                for _, desc in pairs(game:GetDescendants()) do
-                    if desc:IsA("ClickDetector") then
-                        fireclickdetector(desc)
+                for _, cd in pairs(clickDetectors) do
+                    if cd and cd.Parent then
+                        fireclickdetector(cd)
                     end
                 end
                 task.wait()
@@ -368,7 +230,7 @@ local function createAutoclickGUI()
 end
 
 if _G.PiggyScript and _G.PiggyScript.commands then
-    _G.PiggyScript.commands.autoclick = function(args)
+    _G.PiggyScript.commands.autoclick = function()
         createAutoclickGUI()
     end
 end
@@ -380,7 +242,6 @@ LocalPlayer.Chatted:Connect(function(msg)
     local body = msg:sub(#PREFIX + 1)
     local parts = body:split(" ")
     local cmd = parts[1]:lower()
-    table.remove(parts, 1)
 
     if cmd == "autoclick" then
         createAutoclickGUI()
