@@ -631,6 +631,12 @@ for _, player in pairs(Players:GetPlayers()) do
     end
 end
 
+_G.PiggyScript = {
+    permittedPlayers = permittedPlayers,
+    commands = commands,
+    PREFIX = PREFIX
+}
+
 print("Chat command handler loaded! Commands: !trap, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
 
 task.spawn(function()
