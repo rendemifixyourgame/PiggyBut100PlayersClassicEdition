@@ -45,7 +45,7 @@ local function placeTrap()
         :WaitForChild("ChapterEvent"):FireServer("PlaceTrap")
 end
 
-local function disableMovement(hrp)
+local function disableMovement()
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
@@ -54,11 +54,10 @@ local function disableMovement(hrp)
         hum.JumpPower = 0
         hum.AutoRotate = false
     end
-    -- Anchor HRP so character doesn't fall
-    if hrp then hrp.Anchored = true end
+    workspace.Gravity = 0
 end
 
-local function enableMovement(hrp)
+local function enableMovement()
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
@@ -67,7 +66,7 @@ local function enableMovement(hrp)
         hum.JumpPower = 50
         hum.AutoRotate = true
     end
-    if hrp then hrp.Anchored = false end
+    workspace.Gravity = 196.2
 end
 
 local function destroyPreview()
@@ -117,9 +116,8 @@ local function startPlacement()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then placementActive = false return end
 
-    disableMovement(hrp)
+    disableMovement()
 
-    -- Snap to start position floating above canvas, lying flat
     hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + HOVER_HEIGHT, origin.Position.Z)
         * CFrame.Angles(math.rad(90), 0, 0)
     task.wait(0.2)
@@ -161,7 +159,7 @@ local function startPlacement()
         placeAtPos(getWorldPos(pixel))
     end
 
-    enableMovement(hrp)
+    enableMovement()
     placementActive = false
     print("Draw complete!")
 end
