@@ -16,7 +16,6 @@ local previewPart = nil
 local pixelData = nil
 local placementActive = false
 local currentRotation = 0
-local platform = nil
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
@@ -46,52 +45,29 @@ local function placeTrap()
         :WaitForChild("ChapterEvent"):FireServer("PlaceTrap")
 end
 
--- XZ only distance check so Y level differences don't confuse it
-local function trapExistsNear(pos, radius)
-    radius = radius or GRID_SIZE * 1.5
-    local ok, descendants = pcall(function() return workspace.Map:GetDescendants() end)
-    if not ok then return false end
-    for _, obj in pairs(descendants) do
-        if obj:IsA("BasePart") then
-            local dx = obj.Position.X - pos.X
-            local dz = obj.Position.Z - pos.Z
-            if math.sqrt(dx*dx + dz*dz) <= radius then
-                return true
-            end
-        end
+local function disableMovement(hrp)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
+    if hum then
+        hum.WalkSpeed = 0
+        hum.JumpPower = 0
+        hum.AutoRotate = false
     end
-    return false
+    -- Anchor HRP so character doesn't fall
+    if hrp then hrp.Anchored = true end
 end
 
-local function createPlatform(originCFrame)
-    if platform then platform:Destroy() end
-    local p = Instance.new("Part")
-    p.Size = Vector3.new(CANVAS_SIZE, 1, CANVAS_SIZE)
-    p.CFrame = CFrame.new(originCFrame.Position.X, originCFrame.Position.Y - 0.5, originCFrame.Position.Z)
-        * CFrame.Angles(0, math.rad(currentRotation), 0)
-    p.Anchored = true
-    p.CanCollide = true
-    p.Transparency = 1
-    p.Parent = workspace
-    platform = p
-end
-
-local function destroyPlatform()
-    if platform then platform:Destroy() platform = nil end
-end
-
-local function disableMovement()
+local function enableMovement(hrp)
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
-    if hum then hum.WalkSpeed = 0 hum.JumpPower = 0 end
-end
-
-local function enableMovement()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChild("Humanoid")
-    if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 end
+    if hum then
+        hum.WalkSpeed = 16
+        hum.JumpPower = 50
+        hum.AutoRotate = true
+    end
+    if hrp then hrp.Anchored = false end
 end
 
 local function destroyPreview()
@@ -141,10 +117,12 @@ local function startPlacement()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then placementActive = false return end
 
-    createPlatform(origin)
-    disableMovement()
+    disableMovement(hrp)
+
+    -- Snap to start position floating above canvas, lying flat
     hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + HOVER_HEIGHT, origin.Position.Z)
-    task.wait(0.3)
+        * CFrame.Angles(math.rad(90), 0, 0)
+    task.wait(0.2)
 
     local function getWorldPos(pixel)
         local offsetX = (pixel.x - 32) * GRID_SIZE
@@ -159,16 +137,12 @@ local function startPlacement()
 
     local function placeAtPos(pos)
         if not placementActive then return end
-        -- teleport once, then spam remote until trap appears
-        hrp.CFrame = CFrame.new(pos)
-        task.wait(0.1)
-        local floorPos = Vector3.new(pos.X, origin.Position.Y, pos.Z)
-        local elapsed = 0
-        repeat
-            placeTrap()
-            task.wait(0.05)
-            elapsed = elapsed + 0.05
-        until trapExistsNear(floorPos) or elapsed >= 12
+        local tween = TweenService:Create(hrp, TweenInfo.new(0.08, Enum.EasingStyle.Linear), {
+            CFrame = CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0)
+        })
+        tween:Play()
+        tween.Completed:Wait()
+        placeTrap()
     end
 
     print("Equipping Default trap...")
@@ -187,8 +161,7 @@ local function startPlacement()
         placeAtPos(getWorldPos(pixel))
     end
 
-    enableMovement()
-    destroyPlatform()
+    enableMovement(hrp)
     placementActive = false
     print("Draw complete!")
 end
