@@ -16,6 +16,7 @@ local previewPart = nil
 local pixelData = nil
 local placementActive = false
 local currentRotation = 0
+local platform = nil
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
@@ -45,28 +46,35 @@ local function placeTrap()
         :WaitForChild("ChapterEvent"):FireServer("PlaceTrap")
 end
 
+local function createPlatform(originCFrame)
+    if platform then platform:Destroy() end
+    local p = Instance.new("Part")
+    p.Size = Vector3.new(CANVAS_SIZE, 1, CANVAS_SIZE)
+    p.CFrame = CFrame.new(originCFrame.Position.X, originCFrame.Position.Y - 0.5, originCFrame.Position.Z)
+        * CFrame.Angles(0, math.rad(currentRotation), 0)
+    p.Anchored = true
+    p.CanCollide = true
+    p.Transparency = 1
+    p.Parent = workspace
+    platform = p
+end
+
+local function destroyPlatform()
+    if platform then platform:Destroy() platform = nil end
+end
+
 local function disableMovement()
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
-    if hum then
-        hum.WalkSpeed = 0
-        hum.JumpPower = 0
-        hum.AutoRotate = false
-    end
-    workspace.Gravity = 0
+    if hum then hum.WalkSpeed = 0 hum.JumpPower = 0 end
 end
 
 local function enableMovement()
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
-    if hum then
-        hum.WalkSpeed = 16
-        hum.JumpPower = 50
-        hum.AutoRotate = true
-    end
-    workspace.Gravity = 196.2
+    if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 end
 end
 
 local function destroyPreview()
@@ -116,10 +124,10 @@ local function startPlacement()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then placementActive = false return end
 
+    createPlatform(origin)
     disableMovement()
 
     hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + HOVER_HEIGHT, origin.Position.Z)
-        * CFrame.Angles(math.rad(90), 0, 0)
     task.wait(0.2)
 
     local function getWorldPos(pixel)
@@ -135,12 +143,9 @@ local function startPlacement()
 
     local function placeAtPos(pos)
         if not placementActive then return end
-        local tween = TweenService:Create(hrp, TweenInfo.new(0.08, Enum.EasingStyle.Linear), {
-            CFrame = CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0)
-        })
-        tween:Play()
-        tween.Completed:Wait()
+        hrp.CFrame = CFrame.new(pos)
         placeTrap()
+        task.wait(0.08)
     end
 
     print("Equipping Default trap...")
@@ -160,6 +165,7 @@ local function startPlacement()
     end
 
     enableMovement()
+    destroyPlatform()
     placementActive = false
     print("Draw complete!")
 end
