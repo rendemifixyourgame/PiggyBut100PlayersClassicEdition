@@ -9,17 +9,13 @@ local Camera = workspace.CurrentCamera
 
 local API_URL = "https://drawstuff-api-production.up.railway.app/convert?url="
 local GRID_SIZE = 3
-local CANVAS_SIZE = 64 * GRID_SIZE -- 192 studs
+local CANVAS_SIZE = 64 * GRID_SIZE
 
 local drawGUI = nil
 local previewPart = nil
 local pixelData = nil
 local placementActive = false
 local currentRotation = 0
-
--- Drag state
-local dragging = false
-local lastTouchPos = nil
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
@@ -37,54 +33,6 @@ local function placeTrap()
         :WaitForChild("ChapterEvent"):FireServer(unpack(args))
 end
 
-local function getRaycastPosition()
-    local unitRay = Camera:ScreenPointToRay(
-        Camera.ViewportSize.X / 2,
-        Camera.ViewportSize.Y / 2
-    )
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = { LocalPlayer.Character, previewPart }
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, raycastParams)
-    if result then
-        return result.Position
-    end
-    return nil
-end
-
-local function createPreviewPart()
-    if previewPart then previewPart:Destroy() end
-    local part = Instance.new("Part")
-    part.Size = Vector3.new(CANVAS_SIZE, 0.1, CANVAS_SIZE)
-    part.Anchored = true
-    part.CanCollide = false
-    part.Transparency = 0.5
-    part.BrickColor = BrickColor.new("Bright blue")
-    part.Material = Enum.Material.Neon
-    part.Parent = workspace
-    previewPart = part
-
-    -- Grid lines texture
-    local texture = Instance.new("Texture")
-    texture.Texture = "rbxassetid://6372755229"
-    texture.StudsPerTileU = GRID_SIZE
-    texture.StudsPerTileV = GRID_SIZE
-    texture.Transparency = 0.5
-    texture.Face = Enum.NormalId.Top
-    texture.Parent = part
-
-    return part
-end
-
-local function updatePreviewPosition()
-    if not previewPart then return end
-    local pos = getRaycastPosition()
-    if pos then
-        previewPart.CFrame = CFrame.new(pos.X, pos.Y + 0.05, pos.Z) 
-            * CFrame.Angles(0, math.rad(currentRotation), 0)
-    end
-end
-
 local function destroyPreview()
     if previewPart then
         previewPart:Destroy()
@@ -99,6 +47,29 @@ local function destroyGUI()
     end
 end
 
+local function createPreviewPart()
+    if previewPart then previewPart:Destroy() end
+    local part = Instance.new("Part")
+    part.Size = Vector3.new(CANVAS_SIZE, 0.1, CANVAS_SIZE)
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 0.5
+    part.BrickColor = BrickColor.new("Bright blue")
+    part.Material = Enum.Material.Neon
+    part.Parent = workspace
+    previewPart = part
+
+    local texture = Instance.new("Texture")
+    texture.Texture = "rbxassetid://6372755229"
+    texture.StudsPerTileU = GRID_SIZE
+    texture.StudsPerTileV = GRID_SIZE
+    texture.Transparency = 0.5
+    texture.Face = Enum.NormalId.Top
+    texture.Parent = part
+
+    return part
+end
+
 local function startPlacement()
     if not pixelData or not previewPart then return end
 
@@ -106,7 +77,6 @@ local function startPlacement()
     destroyPreview()
     placementActive = true
 
-    -- Separate white and black pixels
     local whitePixels = {}
     local blackPixels = {}
     for _, pixel in pairs(pixelData) do
@@ -129,7 +99,6 @@ local function startPlacement()
         return origin.Position + worldOffset
     end
 
-    -- Place white pixels first
     equipTrap("Default")
     task.wait(0.2)
     for _, pixel in pairs(whitePixels) do
@@ -141,7 +110,6 @@ local function startPlacement()
         task.wait()
     end
 
-    -- Place black pixels
     equipTrap("Black Hole")
     task.wait(0.2)
     for _, pixel in pairs(blackPixels) do
@@ -194,9 +162,9 @@ local function createURLGui()
     titleLabel.Size = UDim2.new(1, -40, 1, 0)
     titleLabel.Position = UDim2.new(0, 10, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "Draw :3"
+    titleLabel.Text = "Drawwy Trappy (⁠.⁠ ❛⁠ ᴗ⁠ ❛⁠.⁠)"
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextSize = 16
+    titleLabel.TextSize = 14
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = titleBar
@@ -249,6 +217,47 @@ local function createURLGui()
     confirmCorner.CornerRadius = UDim.new(0, 8)
     confirmCorner.Parent = confirmButton
 
+    -- Drag logic for mainFrame
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+
+    local function updateDrag(input)
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+            input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or
+            input.UserInputType == Enum.UserInputType.Touch then
+            if dragging then updateDrag(input) end
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
+            input.UserInputType == Enum.UserInputType.Touch) then
+            updateDrag(input)
+        end
+    end)
+
     closeButton.MouseButton1Click:Connect(function()
         destroyGUI()
         destroyPreview()
@@ -285,9 +294,8 @@ local function createURLGui()
 
             destroyGUI()
             createPreviewPart()
-            print("Image loaded! Drag to position, rotate with buttons, double tap to place.")
+            print("Image loaded! Drag on the ground to position, rotate with buttons, then hit Place!")
 
-            -- Create placement control GUI
             local controlGui = Instance.new("ScreenGui")
             controlGui.Name = "DrawControlGUI"
             controlGui.ResetOnSpawn = false
@@ -296,8 +304,8 @@ local function createURLGui()
             drawGUI = controlGui
 
             local controlFrame = Instance.new("Frame")
-            controlFrame.Size = UDim2.new(0, 220, 0, 100)
-            controlFrame.Position = UDim2.new(0.5, -110, 1, -120)
+            controlFrame.Size = UDim2.new(0, 290, 0, 100)
+            controlFrame.Position = UDim2.new(0.5, -145, 1, -120)
             controlFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
             controlFrame.BorderSizePixel = 0
             controlFrame.Parent = controlGui
@@ -338,7 +346,7 @@ local function createURLGui()
 
             local placeBtn = Instance.new("TextButton")
             placeBtn.Size = UDim2.new(0, 80, 0, 40)
-            placeBtn.Position = UDim2.new(0, 190, 0, 15)
+            placeBtn.Position = UDim2.new(0, 200, 0, 15)
             placeBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
             placeBtn.BorderSizePixel = 0
             placeBtn.Text = "Place!"
@@ -368,12 +376,10 @@ local function createURLGui()
 
             rotateLeftBtn.MouseButton1Click:Connect(function()
                 currentRotation = currentRotation - 90
-                updatePreviewPosition()
             end)
 
             rotateRightBtn.MouseButton1Click:Connect(function()
                 currentRotation = currentRotation + 90
-                updatePreviewPosition()
             end)
 
             placeBtn.MouseButton1Click:Connect(function()
@@ -392,17 +398,19 @@ local function createURLGui()
     end)
 end
 
--- Drag preview with touch
+-- Touch drag for preview part
 UserInputService.TouchMoved:Connect(function(touch, processed)
     if processed then return end
     if not previewPart then return end
-    updatePreviewPosition()
-end)
 
--- Update preview on heartbeat
-RunService.Heartbeat:Connect(function()
-    if previewPart then
-        updatePreviewPosition()
+    local unitRay = Camera:ScreenPointToRay(touch.Position.X, touch.Position.Y)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = { LocalPlayer.Character, previewPart }
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, raycastParams)
+    if result then
+        previewPart.CFrame = CFrame.new(result.Position.X, result.Position.Y + 0.05, result.Position.Z)
+            * CFrame.Angles(0, math.rad(currentRotation), 0)
     end
 end)
 
@@ -422,3 +430,5 @@ LocalPlayer.Chatted:Connect(function(msg)
         createURLGui()
     end
 end)
+
+print("Part 3 loaded! Commands: !draw")
