@@ -21,8 +21,8 @@ local platform = nil
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
 local function equipTrap(trapName)
-    local trapGui = LocalPlayer:FindFirstChild("PlayerGui")
     local current = nil
+    local trapGui = LocalPlayer:FindFirstChild("PlayerGui")
     if trapGui then
         local gameGUI = trapGui:FindFirstChild("GameGUI")
         if gameGUI then
@@ -46,13 +46,16 @@ local function placeTrap()
         :WaitForChild("ChapterEvent"):FireServer("PlaceTrap")
 end
 
+-- XZ only distance check so Y level differences don't confuse it
 local function trapExistsNear(pos, radius)
     radius = radius or GRID_SIZE * 1.5
     local ok, descendants = pcall(function() return workspace.Map:GetDescendants() end)
     if not ok then return false end
     for _, obj in pairs(descendants) do
         if obj:IsA("BasePart") then
-            if (obj.Position - pos).Magnitude <= radius then
+            local dx = obj.Position.X - pos.X
+            local dz = obj.Position.Z - pos.Z
+            if math.sqrt(dx*dx + dz*dz) <= radius then
                 return true
             end
         end
@@ -110,12 +113,10 @@ local function createPreviewPart(imageUrl)
     part.Material = Enum.Material.SmoothPlastic
     part.Parent = workspace
     previewPart = part
-
     local decal = Instance.new("Decal")
     decal.Texture = imageUrl
     decal.Face = Enum.NormalId.Top
     decal.Parent = part
-
     return part
 end
 
@@ -142,15 +143,13 @@ local function startPlacement()
 
     createPlatform(origin)
     disableMovement()
-
     hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + HOVER_HEIGHT, origin.Position.Z)
     task.wait(0.3)
 
     local function getWorldPos(pixel)
         local offsetX = (pixel.x - 32) * GRID_SIZE
         local offsetZ = (pixel.y - 32) * GRID_SIZE
-        local localOffset = Vector3.new(offsetX, 0, offsetZ)
-        local worldOffset = origin:VectorToWorldSpace(localOffset)
+        local worldOffset = origin:VectorToWorldSpace(Vector3.new(offsetX, 0, offsetZ))
         return Vector3.new(
             origin.Position.X + worldOffset.X,
             origin.Position.Y + HOVER_HEIGHT,
@@ -160,10 +159,12 @@ local function startPlacement()
 
     local function placeAtPos(pos)
         if not placementActive then return end
+        -- teleport once, then spam remote until trap appears
+        hrp.CFrame = CFrame.new(pos)
+        task.wait(0.1)
         local floorPos = Vector3.new(pos.X, origin.Position.Y, pos.Z)
         local elapsed = 0
         repeat
-            hrp.CFrame = CFrame.new(pos)
             placeTrap()
             task.wait(0.05)
             elapsed = elapsed + 0.05
@@ -194,7 +195,6 @@ end
 
 local function createURLGui()
     if drawGUI then drawGUI:Destroy() end
-
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "DrawGUI"
@@ -402,7 +402,6 @@ UserInputService.InputChanged:Connect(function(input)
     if not previewPart then return end
     if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
     if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and input.UserInputType ~= Enum.UserInputType.Touch then return end
-
     local unitRay = Camera:ScreenPointToRay(input.Position.X, input.Position.Y)
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = { LocalPlayer.Character, previewPart }
