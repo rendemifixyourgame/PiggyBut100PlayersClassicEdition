@@ -113,11 +113,8 @@ local function startPlacement()
     local whitePixels = {}
     local blackPixels = {}
     for _, pixel in pairs(pixelData) do
-        if pixel.color == "white" then
-            table.insert(whitePixels, pixel)
-        else
-            table.insert(blackPixels, pixel)
-        end
+        if pixel.color == "white" then table.insert(whitePixels, pixel)
+        else table.insert(blackPixels, pixel) end
     end
 
     local char = LocalPlayer.Character
@@ -126,7 +123,6 @@ local function startPlacement()
 
     createPlatform(origin)
     disableMovement()
-
     hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + HOVER_HEIGHT, origin.Position.Z)
     task.wait(0.2)
 
@@ -134,11 +130,7 @@ local function startPlacement()
         local offsetX = (pixel.x - 32) * GRID_SIZE
         local offsetZ = (pixel.y - 32) * GRID_SIZE
         local worldOffset = origin:VectorToWorldSpace(Vector3.new(offsetX, 0, offsetZ))
-        return Vector3.new(
-            origin.Position.X + worldOffset.X,
-            origin.Position.Y + HOVER_HEIGHT,
-            origin.Position.Z + worldOffset.Z
-        )
+        return Vector3.new(origin.Position.X + worldOffset.X, origin.Position.Y + HOVER_HEIGHT, origin.Position.Z + worldOffset.Z)
     end
 
     local function placeAtPos(pos)
@@ -148,17 +140,13 @@ local function startPlacement()
         task.wait(0.08)
     end
 
-    print("Equipping Default trap...")
     equipTrap("Default")
-    print("Placing white pixels...")
     for _, pixel in pairs(whitePixels) do
         if not placementActive then break end
         placeAtPos(getWorldPos(pixel))
     end
 
-    print("Equipping Black Hole trap...")
     equipTrap("Black Hole")
-    print("Placing black pixels...")
     for _, pixel in pairs(blackPixels) do
         if not placementActive then break end
         placeAtPos(getWorldPos(pixel))
@@ -179,6 +167,8 @@ local function createURLGui()
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = playerGui
     drawGUI = screenGui
+
+    local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 340, 0, 140)
@@ -254,7 +244,6 @@ local function createURLGui()
     confirmBtn.Parent = mainFrame
     Instance.new("UICorner", confirmBtn).CornerRadius = UDim.new(0, 8)
 
-    local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     TweenService:Create(mainFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
     TweenService:Create(titleBar, tweenInfo, {BackgroundTransparency = 0}):Play()
     TweenService:Create(titleLabel, tweenInfo, {TextTransparency = 0}):Play()
@@ -325,6 +314,7 @@ local function createURLGui()
             controlFrame.BackgroundTransparency = 1
             controlFrame.Parent = controlGui
             Instance.new("UICorner", controlFrame).CornerRadius = UDim.new(0, 12)
+            TweenService:Create(controlFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
 
             local function makeBtn(text, color, x, y, w, h)
                 local btn = Instance.new("TextButton")
@@ -344,8 +334,6 @@ local function createURLGui()
                 return btn
             end
 
-            TweenService:Create(controlFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
-
             local rotateLeftBtn  = makeBtn("◄ Left",  Color3.fromRGB(60, 60, 180),  10, 15, 80, 40)
             local rotateRightBtn = makeBtn("Right ►", Color3.fromRGB(60, 60, 180), 100, 15, 80, 40)
             local placeBtn       = makeBtn("Place!",  Color3.fromRGB(50, 180, 50), 200, 15, 80, 40)
@@ -353,15 +341,11 @@ local function createURLGui()
 
             rotateLeftBtn.MouseButton1Click:Connect(function()
                 currentRotation = currentRotation - 90
-                if previewPart then
-                    previewPart.CFrame = CFrame.new(previewPart.Position) * CFrame.Angles(0, math.rad(currentRotation), 0)
-                end
+                if previewPart then previewPart.CFrame = CFrame.new(previewPart.Position) * CFrame.Angles(0, math.rad(currentRotation), 0) end
             end)
             rotateRightBtn.MouseButton1Click:Connect(function()
                 currentRotation = currentRotation + 90
-                if previewPart then
-                    previewPart.CFrame = CFrame.new(previewPart.Position) * CFrame.Angles(0, math.rad(currentRotation), 0)
-                end
+                if previewPart then previewPart.CFrame = CFrame.new(previewPart.Position) * CFrame.Angles(0, math.rad(currentRotation), 0) end
             end)
             placeBtn.MouseButton1Click:Connect(function()
                 destroyGUI()
