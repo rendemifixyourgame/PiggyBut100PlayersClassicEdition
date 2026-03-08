@@ -17,19 +17,46 @@ local pixelData = nil
 local placementActive = false
 local currentRotation = 0
 local platform = nil
+local lastImageURL = nil
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
+local function getCurrentTrap()
+    local trapGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not trapGui then return nil end
+    local gameGUI = trapGui:FindFirstChild("GameGUI")
+    if not gameGUI then return nil end
+    local trap = gameGUI:FindFirstChild("Trap")
+    if not trap then return nil end
+    local trapsVal = trap:FindFirstChild("Traps_")
+    return trapsVal and trapsVal.Value or nil
+end
+
 local function equipTrap(trapName)
+    local current = getCurrentTrap()
+    if current == trapName then return end
     LocalPlayer:WaitForChild("PlayerGui")
         :WaitForChild("MainMenu"):WaitForChild("Shop")
         :WaitForChild("ShopMenu"):WaitForChild("TrapList")
         :WaitForChild("ShopRemote"):InvokeServer("EquippingTrap", trapName)
+    task.wait(0.3)
 end
 
 local function placeTrap()
     game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
         :WaitForChild("ChapterEvent"):FireServer("PlaceTrap")
+end
+
+local function trapExistsNear(pos, radius)
+    radius = radius or GRID_SIZE
+    for _, obj in pairs(workspace.Map:GetDescendants()) do
+        if obj:IsA("BasePart") and (obj.Name == "Default" or obj.Name == "Black Hole") then
+            if (obj.Position - pos).Magnitude <= radius then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 local function createPlatform(originCFrame)
@@ -86,25 +113,23 @@ local function destroyGUI()
     end
 end
 
-local function createPreviewPart()
+local function createPreviewPart(imageUrl)
     if previewPart then previewPart:Destroy() end
     local part = Instance.new("Part")
     part.Size = Vector3.new(CANVAS_SIZE, 0.1, CANVAS_SIZE)
     part.Anchored = true
     part.CanCollide = false
-    part.Transparency = 0.5
-    part.BrickColor = BrickColor.new("Bright blue")
-    part.Material = Enum.Material.Neon
+    part.Transparency = 0
+    part.BrickColor = BrickColor.new("White")
+    part.Material = Enum.Material.SmoothPlastic
     part.Parent = workspace
     previewPart = part
 
-    local texture = Instance.new("Texture")
-    texture.Texture = "rbxassetid://6372755229"
-    texture.StudsPerTileU = GRID_SIZE
-    texture.StudsPerTileV = GRID_SIZE
-    texture.Transparency = 0.5
-    texture.Face = Enum.NormalId.Top
-    texture.Parent = part
+    -- Show actual image as decal on top
+    local decal = Instance.new("Decal")
+    decal.Texture = imageUrl
+    decal.Face = Enum.NormalId.Top
+    decal.Parent = part
 
     return part
 end
@@ -133,7 +158,6 @@ local function startPlacement()
     createPlatform(origin)
     disableMovement()
 
-    -- Teleport character on top of platform first
     hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + 3, origin.Position.Z)
     task.wait(0.3)
 
@@ -145,26 +169,39 @@ local function startPlacement()
         return Vector3.new(origin.Position.X + worldOffset.X, origin.Position.Y + 3, origin.Position.Z + worldOffset.Z)
     end
 
+    local function placeWithRetry(pos, trapName, maxRetries)
+        maxRetries = maxRetries or 3
+        local floorPos = Vector3.new(pos.X, origin.Position.Y, pos.Z)
+        for attempt = 1, maxRetries do
+            hrp.CFrame = CFrame.new(pos)
+            task.wait()
+            placeTrap()
+            task.wait(0.1)
+            if trapExistsNear(floorPos) then
+                return true
+            end
+            -- retry
+            task.wait(0.1)
+        end
+        return false
+    end
+
+    -- Place white pixels
+    print("Placing white (Default) traps...")
     equipTrap("Default")
-    task.wait(0.2)
     for _, pixel in pairs(whitePixels) do
         if not placementActive then break end
         local pos = getWorldPos(pixel)
-        hrp.CFrame = CFrame.new(pos)
-        task.wait()
-        placeTrap()
-        task.wait()
+        placeWithRetry(pos, "Default")
     end
 
+    -- Place black pixels
+    print("Placing black (Black Hole) traps...")
     equipTrap("Black Hole")
-    task.wait(0.2)
     for _, pixel in pairs(blackPixels) do
         if not placementActive then break end
         local pos = getWorldPos(pixel)
-        hrp.CFrame = CFrame.new(pos)
-        task.wait()
-        placeTrap()
-        task.wait()
+        placeWithRetry(pos, "Black Hole")
     end
 
     enableMovement()
@@ -356,9 +393,10 @@ local function createURLGui()
 
             local data = game:GetService("HttpService"):JSONDecode(result.Body)
             pixelData = data.pixels
+            lastImageURL = url
 
             destroyGUI()
-            createPreviewPart()
+            createPreviewPart(url)
             print("Image loaded! Drag on ground to position, rotate with buttons, hit Place!")
 
             local controlGui = Instance.new("ScreenGui")
@@ -465,7 +503,7 @@ local function createURLGui()
 
             placeBtn.MouseButton1Click:Connect(function()
                 destroyGUI()
-                startPlacement()
+                task.spawn(startPlacement)
             end)
 
             cancelBtn.MouseButton1Click:Connect(function()
