@@ -7,6 +7,7 @@ local LocalPlayer = Players.LocalPlayer
 
 local autoclickGUI = nil
 local autoclicking = false
+local autoclickId = 0
 
 local function createAutoclickGUI()
     if autoclickGUI then
@@ -124,8 +125,10 @@ local function createAutoclickGUI()
     autoclicking = true
 
     local function startAutoclick()
+        autoclickId = autoclickId + 1
+        local myId = autoclickId
         task.spawn(function()
-            while autoclicking do
+            while autoclicking and autoclickId == myId do
                 for _, desc in pairs(workspace.Map:GetDescendants()) do
                     if desc:IsA("ClickDetector") then
                         fireclickdetector(desc)
@@ -162,6 +165,7 @@ local function createAutoclickGUI()
 
     closeButton.MouseButton1Click:Connect(function()
         autoclicking = false
+        autoclickId = autoclickId + 1
         autoclickGUI:Destroy()
         autoclickGUI = nil
     end)
