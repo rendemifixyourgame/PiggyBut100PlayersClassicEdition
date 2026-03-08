@@ -1,0 +1,424 @@
+if game.PlaceId ~= 133500464897785 then return end
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local API_URL = "https://drawstuff-api-production.up.railway.app/convert?url="
+local GRID_SIZE = 3
+local CANVAS_SIZE = 64 * GRID_SIZE -- 192 studs
+
+local drawGUI = nil
+local previewPart = nil
+local pixelData = nil
+local placementActive = false
+local currentRotation = 0
+
+-- Drag state
+local dragging = false
+local lastTouchPos = nil
+
+local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
+
+local function equipTrap(trapName)
+    local args = { "EquippingTrap", trapName }
+    game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+        :WaitForChild("MainMenu"):WaitForChild("Shop")
+        :WaitForChild("ShopMenu"):WaitForChild("TrapList")
+        :WaitForChild("ShopRemote"):InvokeServer(unpack(args))
+end
+
+local function placeTrap()
+    local args = { "PlaceTrap" }
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+        :WaitForChild("ChapterEvent"):FireServer(unpack(args))
+end
+
+local function getRaycastPosition()
+    local unitRay = Camera:ScreenPointToRay(
+        Camera.ViewportSize.X / 2,
+        Camera.ViewportSize.Y / 2
+    )
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = { LocalPlayer.Character, previewPart }
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, raycastParams)
+    if result then
+        return result.Position
+    end
+    return nil
+end
+
+local function createPreviewPart()
+    if previewPart then previewPart:Destroy() end
+    local part = Instance.new("Part")
+    part.Size = Vector3.new(CANVAS_SIZE, 0.1, CANVAS_SIZE)
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 0.5
+    part.BrickColor = BrickColor.new("Bright blue")
+    part.Material = Enum.Material.Neon
+    part.Parent = workspace
+    previewPart = part
+
+    -- Grid lines texture
+    local texture = Instance.new("Texture")
+    texture.Texture = "rbxassetid://6372755229"
+    texture.StudsPerTileU = GRID_SIZE
+    texture.StudsPerTileV = GRID_SIZE
+    texture.Transparency = 0.5
+    texture.Face = Enum.NormalId.Top
+    texture.Parent = part
+
+    return part
+end
+
+local function updatePreviewPosition()
+    if not previewPart then return end
+    local pos = getRaycastPosition()
+    if pos then
+        previewPart.CFrame = CFrame.new(pos.X, pos.Y + 0.05, pos.Z) 
+            * CFrame.Angles(0, math.rad(currentRotation), 0)
+    end
+end
+
+local function destroyPreview()
+    if previewPart then
+        previewPart:Destroy()
+        previewPart = nil
+    end
+end
+
+local function destroyGUI()
+    if drawGUI then
+        drawGUI:Destroy()
+        drawGUI = nil
+    end
+end
+
+local function startPlacement()
+    if not pixelData or not previewPart then return end
+
+    local origin = previewPart.CFrame
+    destroyPreview()
+    placementActive = true
+
+    -- Separate white and black pixels
+    local whitePixels = {}
+    local blackPixels = {}
+    for _, pixel in pairs(pixelData) do
+        if pixel.color == "white" then
+            table.insert(whitePixels, pixel)
+        else
+            table.insert(blackPixels, pixel)
+        end
+    end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local function getWorldPos(pixel)
+        local offsetX = (pixel.x - 32) * GRID_SIZE
+        local offsetZ = (pixel.y - 32) * GRID_SIZE
+        local localOffset = Vector3.new(offsetX, 0, offsetZ)
+        local worldOffset = origin:VectorToWorldSpace(localOffset)
+        return origin.Position + worldOffset
+    end
+
+    -- Place white pixels first
+    equipTrap("Default")
+    task.wait(0.2)
+    for _, pixel in pairs(whitePixels) do
+        if not placementActive then break end
+        local pos = getWorldPos(pixel)
+        hrp.CFrame = CFrame.new(pos.X, hrp.Position.Y, pos.Z)
+        task.wait()
+        placeTrap()
+        task.wait()
+    end
+
+    -- Place black pixels
+    equipTrap("Black Hole")
+    task.wait(0.2)
+    for _, pixel in pairs(blackPixels) do
+        if not placementActive then break end
+        local pos = getWorldPos(pixel)
+        hrp.CFrame = CFrame.new(pos.X, hrp.Position.Y, pos.Z)
+        task.wait()
+        placeTrap()
+        task.wait()
+    end
+
+    placementActive = false
+    print("Draw complete!")
+end
+
+local function createURLGui()
+    if drawGUI then drawGUI:Destroy() end
+
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "DrawGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
+    drawGUI = screenGui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 340, 0, 140)
+    mainFrame.Position = UDim2.new(0.5, -170, 0.5, -70)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 35)
+    titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    titleCorner.Parent = titleBar
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -40, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Draw :3"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 30, 0, 25)
+    closeButton.Position = UDim2.new(1, -35, 0, 5)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeButton.BorderSizePixel = 0
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 16
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleBar
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 6)
+    closeCorner.Parent = closeButton
+
+    local urlBox = Instance.new("TextBox")
+    urlBox.Size = UDim2.new(1, -20, 0, 35)
+    urlBox.Position = UDim2.new(0, 10, 0, 45)
+    urlBox.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    urlBox.BorderSizePixel = 0
+    urlBox.Text = ""
+    urlBox.PlaceholderText = "Paste image URL here..."
+    urlBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    urlBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    urlBox.TextSize = 14
+    urlBox.Font = Enum.Font.Gotham
+    urlBox.ClearTextOnFocus = false
+    urlBox.Parent = mainFrame
+
+    local urlBoxCorner = Instance.new("UICorner")
+    urlBoxCorner.CornerRadius = UDim.new(0, 8)
+    urlBoxCorner.Parent = urlBox
+
+    local confirmButton = Instance.new("TextButton")
+    confirmButton.Size = UDim2.new(1, -20, 0, 35)
+    confirmButton.Position = UDim2.new(0, 10, 0, 90)
+    confirmButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+    confirmButton.BorderSizePixel = 0
+    confirmButton.Text = "Confirm"
+    confirmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    confirmButton.TextSize = 16
+    confirmButton.Font = Enum.Font.GothamBold
+    confirmButton.Parent = mainFrame
+
+    local confirmCorner = Instance.new("UICorner")
+    confirmCorner.CornerRadius = UDim.new(0, 8)
+    confirmCorner.Parent = confirmButton
+
+    closeButton.MouseButton1Click:Connect(function()
+        destroyGUI()
+        destroyPreview()
+        pixelData = nil
+        placementActive = false
+    end)
+
+    confirmButton.MouseButton1Click:Connect(function()
+        local url = urlBox.Text
+        if url == "" then return end
+
+        confirmButton.Text = "Fetching..."
+        confirmButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+
+        task.spawn(function()
+            local success, result = pcall(function()
+                return request({
+                    Url = API_URL .. url,
+                    Method = "GET"
+                })
+            end)
+
+            if not success or not result or result.StatusCode ~= 200 then
+                confirmButton.Text = "Failed! Try again"
+                confirmButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                task.wait(2)
+                confirmButton.Text = "Confirm"
+                confirmButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+                return
+            end
+
+            local data = game:GetService("HttpService"):JSONDecode(result.Body)
+            pixelData = data.pixels
+
+            destroyGUI()
+            createPreviewPart()
+            print("Image loaded! Drag to position, rotate with buttons, double tap to place.")
+
+            -- Create placement control GUI
+            local controlGui = Instance.new("ScreenGui")
+            controlGui.Name = "DrawControlGUI"
+            controlGui.ResetOnSpawn = false
+            controlGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            controlGui.Parent = playerGui
+            drawGUI = controlGui
+
+            local controlFrame = Instance.new("Frame")
+            controlFrame.Size = UDim2.new(0, 220, 0, 100)
+            controlFrame.Position = UDim2.new(0.5, -110, 1, -120)
+            controlFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            controlFrame.BorderSizePixel = 0
+            controlFrame.Parent = controlGui
+
+            local controlCorner = Instance.new("UICorner")
+            controlCorner.CornerRadius = UDim.new(0, 12)
+            controlCorner.Parent = controlFrame
+
+            local rotateLeftBtn = Instance.new("TextButton")
+            rotateLeftBtn.Size = UDim2.new(0, 80, 0, 40)
+            rotateLeftBtn.Position = UDim2.new(0, 10, 0, 15)
+            rotateLeftBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180)
+            rotateLeftBtn.BorderSizePixel = 0
+            rotateLeftBtn.Text = "↺ Left"
+            rotateLeftBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            rotateLeftBtn.TextSize = 14
+            rotateLeftBtn.Font = Enum.Font.GothamBold
+            rotateLeftBtn.Parent = controlFrame
+
+            local rotateLeftCorner = Instance.new("UICorner")
+            rotateLeftCorner.CornerRadius = UDim.new(0, 8)
+            rotateLeftCorner.Parent = rotateLeftBtn
+
+            local rotateRightBtn = Instance.new("TextButton")
+            rotateRightBtn.Size = UDim2.new(0, 80, 0, 40)
+            rotateRightBtn.Position = UDim2.new(0, 100, 0, 15)
+            rotateRightBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180)
+            rotateRightBtn.BorderSizePixel = 0
+            rotateRightBtn.Text = "↻ Right"
+            rotateRightBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            rotateRightBtn.TextSize = 14
+            rotateRightBtn.Font = Enum.Font.GothamBold
+            rotateRightBtn.Parent = controlFrame
+
+            local rotateRightCorner = Instance.new("UICorner")
+            rotateRightCorner.CornerRadius = UDim.new(0, 8)
+            rotateRightCorner.Parent = rotateRightBtn
+
+            local placeBtn = Instance.new("TextButton")
+            placeBtn.Size = UDim2.new(0, 80, 0, 40)
+            placeBtn.Position = UDim2.new(0, 190, 0, 15)
+            placeBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+            placeBtn.BorderSizePixel = 0
+            placeBtn.Text = "Place!"
+            placeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            placeBtn.TextSize = 14
+            placeBtn.Font = Enum.Font.GothamBold
+            placeBtn.Parent = controlFrame
+
+            local placeCorner = Instance.new("UICorner")
+            placeCorner.CornerRadius = UDim.new(0, 8)
+            placeCorner.Parent = placeBtn
+
+            local cancelBtn = Instance.new("TextButton")
+            cancelBtn.Size = UDim2.new(1, -20, 0, 30)
+            cancelBtn.Position = UDim2.new(0, 10, 0, 60)
+            cancelBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            cancelBtn.BorderSizePixel = 0
+            cancelBtn.Text = "Cancel"
+            cancelBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            cancelBtn.TextSize = 14
+            cancelBtn.Font = Enum.Font.GothamBold
+            cancelBtn.Parent = controlFrame
+
+            local cancelCorner = Instance.new("UICorner")
+            cancelCorner.CornerRadius = UDim.new(0, 8)
+            cancelCorner.Parent = cancelBtn
+
+            rotateLeftBtn.MouseButton1Click:Connect(function()
+                currentRotation = currentRotation - 90
+                updatePreviewPosition()
+            end)
+
+            rotateRightBtn.MouseButton1Click:Connect(function()
+                currentRotation = currentRotation + 90
+                updatePreviewPosition()
+            end)
+
+            placeBtn.MouseButton1Click:Connect(function()
+                destroyGUI()
+                startPlacement()
+            end)
+
+            cancelBtn.MouseButton1Click:Connect(function()
+                destroyGUI()
+                destroyPreview()
+                pixelData = nil
+                placementActive = false
+                currentRotation = 0
+            end)
+        end)
+    end)
+end
+
+-- Drag preview with touch
+UserInputService.TouchMoved:Connect(function(touch, processed)
+    if processed then return end
+    if not previewPart then return end
+    updatePreviewPosition()
+end)
+
+-- Update preview on heartbeat
+RunService.Heartbeat:Connect(function()
+    if previewPart then
+        updatePreviewPosition()
+    end
+end)
+
+if _G.PiggyScript and _G.PiggyScript.commands then
+    _G.PiggyScript.commands.draw = function()
+        createURLGui()
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    if msg:sub(1, #PREFIX) ~= PREFIX then return end
+    local body = msg:sub(#PREFIX + 1)
+    local parts = body:split(" ")
+    local cmd = parts[1]:lower()
+
+    if cmd == "draw" then
+        createURLGui()
+    end
+end)
