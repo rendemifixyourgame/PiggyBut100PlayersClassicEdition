@@ -229,6 +229,9 @@ if _G.PiggyScript and _G.PiggyScript.commands then
     _G.PiggyScript.commands.autoclick = function()
         createAutoclickGUI()
     end
+    _G.PiggyScript.commands.george = function()
+        game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
+    end
 end
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
@@ -241,5 +244,7 @@ LocalPlayer.Chatted:Connect(function(msg)
 
     if cmd == "autoclick" then
         createAutoclickGUI()
+    elseif cmd == "george" then
+        game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
     end
 end)
