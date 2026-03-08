@@ -16,47 +16,56 @@ local previewPart = nil
 local pixelData = nil
 local placementActive = false
 local currentRotation = 0
+local platform = nil
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
 local function equipTrap(trapName)
-    local args = { "EquippingTrap", trapName }
     LocalPlayer:WaitForChild("PlayerGui")
         :WaitForChild("MainMenu"):WaitForChild("Shop")
         :WaitForChild("ShopMenu"):WaitForChild("TrapList")
-        :WaitForChild("ShopRemote"):InvokeServer(unpack(args))
+        :WaitForChild("ShopRemote"):InvokeServer("EquippingTrap", trapName)
 end
 
 local function placeTrap()
-    local args = { "PlaceTrap" }
     game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
-        :WaitForChild("ChapterEvent"):FireServer(unpack(args))
+        :WaitForChild("ChapterEvent"):FireServer("PlaceTrap")
 end
 
-local function freezeCharacter()
+local function createPlatform(originCFrame)
+    if platform then platform:Destroy() end
+    local p = Instance.new("Part")
+    p.Size = Vector3.new(CANVAS_SIZE, 1, CANVAS_SIZE)
+    p.CFrame = CFrame.new(originCFrame.Position.X, originCFrame.Position.Y - 0.5, originCFrame.Position.Z)
+        * CFrame.Angles(0, math.rad(currentRotation), 0)
+    p.Anchored = true
+    p.CanCollide = true
+    p.Transparency = 1
+    p.Parent = workspace
+    platform = p
+end
+
+local function destroyPlatform()
+    if platform then
+        platform:Destroy()
+        platform = nil
+    end
+end
+
+local function disableMovement()
     local char = LocalPlayer.Character
     if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChild("Humanoid")
-    if hrp then
-        hrp.Anchored = true
-        hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, 0, math.rad(90))
-    end
     if hum then
         hum.WalkSpeed = 0
         hum.JumpPower = 0
     end
 end
 
-local function unfreezeCharacter()
+local function enableMovement()
     local char = LocalPlayer.Character
     if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChild("Humanoid")
-    if hrp then
-        hrp.Anchored = false
-        hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, 0, 0)
-    end
     if hum then
         hum.WalkSpeed = 16
         hum.JumpPower = 50
@@ -121,22 +130,27 @@ local function startPlacement()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
+    createPlatform(origin)
+    disableMovement()
+
+    -- Teleport character on top of platform first
+    hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + 3, origin.Position.Z)
+    task.wait(0.3)
+
     local function getWorldPos(pixel)
         local offsetX = (pixel.x - 32) * GRID_SIZE
         local offsetZ = (pixel.y - 32) * GRID_SIZE
         local localOffset = Vector3.new(offsetX, 0, offsetZ)
         local worldOffset = origin:VectorToWorldSpace(localOffset)
-        return origin.Position + worldOffset
+        return Vector3.new(origin.Position.X + worldOffset.X, origin.Position.Y + 3, origin.Position.Z + worldOffset.Z)
     end
-
-    freezeCharacter()
 
     equipTrap("Default")
     task.wait(0.2)
     for _, pixel in pairs(whitePixels) do
         if not placementActive then break end
         local pos = getWorldPos(pixel)
-        hrp.CFrame = CFrame.new(pos.X, hrp.Position.Y, pos.Z) * CFrame.Angles(0, 0, math.rad(90))
+        hrp.CFrame = CFrame.new(pos)
         task.wait()
         placeTrap()
         task.wait()
@@ -147,28 +161,16 @@ local function startPlacement()
     for _, pixel in pairs(blackPixels) do
         if not placementActive then break end
         local pos = getWorldPos(pixel)
-        hrp.CFrame = CFrame.new(pos.X, hrp.Position.Y, pos.Z) * CFrame.Angles(0, 0, math.rad(90))
+        hrp.CFrame = CFrame.new(pos)
         task.wait()
         placeTrap()
         task.wait()
     end
 
-    unfreezeCharacter()
+    enableMovement()
+    destroyPlatform()
     placementActive = false
     print("Draw complete!")
-end
-
-local function addFadeIn(gui, elements)
-    for _, element in pairs(elements) do
-        if element:IsA("Frame") or element:IsA("TextButton") or element:IsA("TextLabel") or element:IsA("TextBox") then
-            if element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
-                element.TextTransparency = 1
-                TweenService:Create(element, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-            end
-            element.BackgroundTransparency = 1
-            TweenService:Create(element, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = element:IsA("Frame") and (element.Name == "MainFrame" and 0 or 0) or 0}):Play()
-        end
-    end
 end
 
 local function createURLGui()
