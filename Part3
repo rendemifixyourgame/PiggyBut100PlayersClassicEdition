@@ -9,6 +9,7 @@ local Camera = workspace.CurrentCamera
 local API_URL = "https://drawstuff-api-production.up.railway.app/convert?url="
 local GRID_SIZE = 3
 local CANVAS_SIZE = 64 * GRID_SIZE
+local HOVER_HEIGHT = 10
 
 local drawGUI = nil
 local previewPart = nil
@@ -19,7 +20,6 @@ local platform = nil
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
--- Equip only if not already equipped
 local function equipTrap(trapName)
     local trapGui = LocalPlayer:FindFirstChild("PlayerGui")
     local current = nil
@@ -77,12 +77,10 @@ local function destroyPlatform()
     if platform then platform:Destroy() platform = nil end
 end
 
-local function layFlat(hrp, pos)
-    hrp.CFrame = CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0)
-end
-
-local function disableMovement(hrp)
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+local function disableMovement()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
     if hum then hum.WalkSpeed = 0 hum.JumpPower = 0 end
 end
 
@@ -90,9 +88,7 @@ local function enableMovement()
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
     if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 end
-    if hrp then hrp.CFrame = CFrame.new(hrp.Position) end
 end
 
 local function destroyPreview()
@@ -142,17 +138,13 @@ local function startPlacement()
 
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then
-        placementActive = false
-        return
-    end
+    if not hrp then placementActive = false return end
 
     createPlatform(origin)
-    disableMovement(hrp)
+    disableMovement()
 
-    local startPos = Vector3.new(origin.Position.X, origin.Position.Y + 1, origin.Position.Z)
-    layFlat(hrp, startPos)
-    task.wait(0.5)
+    hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + HOVER_HEIGHT, origin.Position.Z)
+    task.wait(0.3)
 
     local function getWorldPos(pixel)
         local offsetX = (pixel.x - 32) * GRID_SIZE
@@ -161,23 +153,21 @@ local function startPlacement()
         local worldOffset = origin:VectorToWorldSpace(localOffset)
         return Vector3.new(
             origin.Position.X + worldOffset.X,
-            origin.Position.Y + 1,
+            origin.Position.Y + HOVER_HEIGHT,
             origin.Position.Z + worldOffset.Z
         )
     end
 
-    -- Hammer PlaceTrap until trap appears near position or timeout
     local function placeAtPos(pos)
         if not placementActive then return end
         local floorPos = Vector3.new(pos.X, origin.Position.Y, pos.Z)
         local elapsed = 0
-        local timeout = 12
         repeat
-            layFlat(hrp, pos)
+            hrp.CFrame = CFrame.new(pos)
             placeTrap()
             task.wait(0.05)
             elapsed = elapsed + 0.05
-        until trapExistsNear(floorPos) or elapsed >= timeout
+        until trapExistsNear(floorPos) or elapsed >= 12
     end
 
     print("Equipping Default trap...")
@@ -202,7 +192,6 @@ local function startPlacement()
     print("Draw complete!")
 end
 
--- Build main URL entry GUI
 local function createURLGui()
     if drawGUI then drawGUI:Destroy() end
 
@@ -296,7 +285,6 @@ local function createURLGui()
     TweenService:Create(urlBox, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
     TweenService:Create(confirmBtn, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
 
-    -- Drag
     local dragging, dragStart, startPos = false, nil, nil
     local function updateDrag(input)
         local delta = input.Position - dragStart
@@ -345,7 +333,6 @@ local function createURLGui()
             createPreviewPart(url)
             print("Image loaded! Position the preview, then hit Place!")
 
-            -- Control GUI
             local controlGui = Instance.new("ScreenGui")
             controlGui.Name = "DrawControlGUI"
             controlGui.ResetOnSpawn = false
@@ -411,7 +398,6 @@ local function createURLGui()
     end)
 end
 
--- Drag preview with mouse too
 UserInputService.InputChanged:Connect(function(input)
     if not previewPart then return end
     if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
