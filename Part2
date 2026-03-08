@@ -134,7 +134,7 @@ local function createAutoclickGUI()
                         fireclickdetector(desc)
                     end
                 end
-                task.wait()
+                task.wait(0.05)
             end
         end)
     end
