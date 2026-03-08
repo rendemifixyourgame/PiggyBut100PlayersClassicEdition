@@ -3,7 +3,6 @@ if game.PlaceId ~= 133500464897785 then return end
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -17,23 +16,23 @@ local pixelData = nil
 local placementActive = false
 local currentRotation = 0
 local platform = nil
-local lastImageURL = nil
 
 local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
 
-local function getCurrentTrap()
-    local trapGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not trapGui then return nil end
-    local gameGUI = trapGui:FindFirstChild("GameGUI")
-    if not gameGUI then return nil end
-    local trap = gameGUI:FindFirstChild("Trap")
-    if not trap then return nil end
-    local trapsVal = trap:FindFirstChild("Traps_")
-    return trapsVal and trapsVal.Value or nil
-end
-
+-- Equip only if not already equipped
 local function equipTrap(trapName)
-    local current = getCurrentTrap()
+    local trapGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local current = nil
+    if trapGui then
+        local gameGUI = trapGui:FindFirstChild("GameGUI")
+        if gameGUI then
+            local trap = gameGUI:FindFirstChild("Trap")
+            if trap then
+                local trapsVal = trap:FindFirstChild("Traps_")
+                current = trapsVal and trapsVal.Value or nil
+            end
+        end
+    end
     if current == trapName then return end
     LocalPlayer:WaitForChild("PlayerGui")
         :WaitForChild("MainMenu"):WaitForChild("Shop")
@@ -48,9 +47,11 @@ local function placeTrap()
 end
 
 local function trapExistsNear(pos, radius)
-    radius = radius or GRID_SIZE
-    for _, obj in pairs(workspace.Map:GetDescendants()) do
-        if obj:IsA("BasePart") and (obj.Name == "Default" or obj.Name == "Black Hole") then
+    radius = radius or GRID_SIZE * 1.5
+    local ok, descendants = pcall(function() return workspace.Map:GetDescendants() end)
+    if not ok then return false end
+    for _, obj in pairs(descendants) do
+        if obj:IsA("BasePart") then
             if (obj.Position - pos).Magnitude <= radius then
                 return true
             end
@@ -73,44 +74,33 @@ local function createPlatform(originCFrame)
 end
 
 local function destroyPlatform()
-    if platform then
-        platform:Destroy()
-        platform = nil
-    end
+    if platform then platform:Destroy() platform = nil end
 end
 
-local function disableMovement()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChild("Humanoid")
-    if hum then
-        hum.WalkSpeed = 0
-        hum.JumpPower = 0
-    end
+local function layFlat(hrp, pos)
+    hrp.CFrame = CFrame.new(pos) * CFrame.Angles(math.rad(90), 0, 0)
+end
+
+local function disableMovement(hrp)
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+    if hum then hum.WalkSpeed = 0 hum.JumpPower = 0 end
 end
 
 local function enableMovement()
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
-    if hum then
-        hum.WalkSpeed = 16
-        hum.JumpPower = 50
-    end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 end
+    if hrp then hrp.CFrame = CFrame.new(hrp.Position) end
 end
 
 local function destroyPreview()
-    if previewPart then
-        previewPart:Destroy()
-        previewPart = nil
-    end
+    if previewPart then previewPart:Destroy() previewPart = nil end
 end
 
 local function destroyGUI()
-    if drawGUI then
-        drawGUI:Destroy()
-        drawGUI = nil
-    end
+    if drawGUI then drawGUI:Destroy() drawGUI = nil end
 end
 
 local function createPreviewPart(imageUrl)
@@ -125,7 +115,6 @@ local function createPreviewPart(imageUrl)
     part.Parent = workspace
     previewPart = part
 
-    -- Show actual image as decal on top
     local decal = Instance.new("Decal")
     decal.Texture = imageUrl
     decal.Face = Enum.NormalId.Top
@@ -153,55 +142,58 @@ local function startPlacement()
 
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp then
+        placementActive = false
+        return
+    end
 
     createPlatform(origin)
-    disableMovement()
+    disableMovement(hrp)
 
-    hrp.CFrame = CFrame.new(origin.Position.X, origin.Position.Y + 3, origin.Position.Z)
-    task.wait(0.3)
+    local startPos = Vector3.new(origin.Position.X, origin.Position.Y + 1, origin.Position.Z)
+    layFlat(hrp, startPos)
+    task.wait(0.5)
 
     local function getWorldPos(pixel)
         local offsetX = (pixel.x - 32) * GRID_SIZE
         local offsetZ = (pixel.y - 32) * GRID_SIZE
         local localOffset = Vector3.new(offsetX, 0, offsetZ)
         local worldOffset = origin:VectorToWorldSpace(localOffset)
-        return Vector3.new(origin.Position.X + worldOffset.X, origin.Position.Y + 3, origin.Position.Z + worldOffset.Z)
+        return Vector3.new(
+            origin.Position.X + worldOffset.X,
+            origin.Position.Y + 1,
+            origin.Position.Z + worldOffset.Z
+        )
     end
 
-    local function placeWithRetry(pos, trapName, maxRetries)
-        maxRetries = maxRetries or 3
+    -- Hammer PlaceTrap until trap appears near position or timeout
+    local function placeAtPos(pos)
+        if not placementActive then return end
         local floorPos = Vector3.new(pos.X, origin.Position.Y, pos.Z)
-        for attempt = 1, maxRetries do
-            hrp.CFrame = CFrame.new(pos)
-            task.wait()
+        local elapsed = 0
+        local timeout = 12
+        repeat
+            layFlat(hrp, pos)
             placeTrap()
-            task.wait(0.1)
-            if trapExistsNear(floorPos) then
-                return true
-            end
-            -- retry
-            task.wait(0.1)
-        end
-        return false
+            task.wait(0.05)
+            elapsed = elapsed + 0.05
+        until trapExistsNear(floorPos) or elapsed >= timeout
     end
 
-    -- Place white pixels
-    print("Placing white (Default) traps...")
+    print("Equipping Default trap...")
     equipTrap("Default")
+    print("Placing white pixels...")
     for _, pixel in pairs(whitePixels) do
         if not placementActive then break end
-        local pos = getWorldPos(pixel)
-        placeWithRetry(pos, "Default")
+        placeAtPos(getWorldPos(pixel))
     end
 
-    -- Place black pixels
-    print("Placing black (Black Hole) traps...")
+    print("Equipping Black Hole trap...")
     equipTrap("Black Hole")
+    print("Placing black pixels...")
     for _, pixel in pairs(blackPixels) do
         if not placementActive then break end
-        local pos = getWorldPos(pixel)
-        placeWithRetry(pos, "Black Hole")
+        placeAtPos(getWorldPos(pixel))
     end
 
     enableMovement()
@@ -210,11 +202,11 @@ local function startPlacement()
     print("Draw complete!")
 end
 
+-- Build main URL entry GUI
 local function createURLGui()
     if drawGUI then drawGUI:Destroy() end
 
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "DrawGUI"
     screenGui.ResetOnSpawn = false
@@ -229,10 +221,7 @@ local function createURLGui()
     mainFrame.BorderSizePixel = 0
     mainFrame.BackgroundTransparency = 1
     mainFrame.Parent = screenGui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = mainFrame
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
 
     local titleBar = Instance.new("Frame")
     titleBar.Size = UDim2.new(1, 0, 0, 35)
@@ -240,10 +229,7 @@ local function createURLGui()
     titleBar.BorderSizePixel = 0
     titleBar.BackgroundTransparency = 1
     titleBar.Parent = mainFrame
-
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 12)
-    titleCorner.Parent = titleBar
+    Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
 
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(1, -40, 1, 0)
@@ -257,22 +243,19 @@ local function createURLGui()
     titleLabel.TextTransparency = 1
     titleLabel.Parent = titleBar
 
-    local closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.new(0, 30, 0, 25)
-    closeButton.Position = UDim2.new(1, -35, 0, 5)
-    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    closeButton.BorderSizePixel = 0
-    closeButton.Text = "X"
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.TextSize = 16
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.BackgroundTransparency = 1
-    closeButton.TextTransparency = 1
-    closeButton.Parent = titleBar
-
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 6)
-    closeCorner.Parent = closeButton
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 25)
+    closeBtn.Position = UDim2.new(1, -35, 0, 5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.TextSize = 16
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.TextTransparency = 1
+    closeBtn.Parent = titleBar
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
     local urlBox = Instance.new("TextBox")
     urlBox.Size = UDim2.new(1, -20, 0, 35)
@@ -289,116 +272,80 @@ local function createURLGui()
     urlBox.BackgroundTransparency = 1
     urlBox.TextTransparency = 1
     urlBox.Parent = mainFrame
+    Instance.new("UICorner", urlBox).CornerRadius = UDim.new(0, 8)
 
-    local urlBoxCorner = Instance.new("UICorner")
-    urlBoxCorner.CornerRadius = UDim.new(0, 8)
-    urlBoxCorner.Parent = urlBox
+    local confirmBtn = Instance.new("TextButton")
+    confirmBtn.Size = UDim2.new(1, -20, 0, 35)
+    confirmBtn.Position = UDim2.new(0, 10, 0, 90)
+    confirmBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+    confirmBtn.BorderSizePixel = 0
+    confirmBtn.Text = "Confirm"
+    confirmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    confirmBtn.TextSize = 16
+    confirmBtn.Font = Enum.Font.GothamBold
+    confirmBtn.BackgroundTransparency = 1
+    confirmBtn.TextTransparency = 1
+    confirmBtn.Parent = mainFrame
+    Instance.new("UICorner", confirmBtn).CornerRadius = UDim.new(0, 8)
 
-    local confirmButton = Instance.new("TextButton")
-    confirmButton.Size = UDim2.new(1, -20, 0, 35)
-    confirmButton.Position = UDim2.new(0, 10, 0, 90)
-    confirmButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
-    confirmButton.BorderSizePixel = 0
-    confirmButton.Text = "Confirm"
-    confirmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    confirmButton.TextSize = 16
-    confirmButton.Font = Enum.Font.GothamBold
-    confirmButton.BackgroundTransparency = 1
-    confirmButton.TextTransparency = 1
-    confirmButton.Parent = mainFrame
+    local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    TweenService:Create(mainFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(titleBar, tweenInfo, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(titleLabel, tweenInfo, {TextTransparency = 0}):Play()
+    TweenService:Create(closeBtn, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+    TweenService:Create(urlBox, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+    TweenService:Create(confirmBtn, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
 
-    local confirmCorner = Instance.new("UICorner")
-    confirmCorner.CornerRadius = UDim.new(0, 8)
-    confirmCorner.Parent = confirmButton
-
-    -- Fade in
-    TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(titleBar, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(titleLabel, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-    TweenService:Create(closeButton, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-    TweenService:Create(urlBox, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-    TweenService:Create(confirmButton, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-
-    -- Drag logic
-    local dragging = false
-    local dragStart = nil
-    local startPos = nil
-
+    -- Drag
+    local dragging, dragStart, startPos = false, nil, nil
     local function updateDrag(input)
         local delta = input.Position - dragStart
-        mainFrame.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-
     titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-            input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true dragStart = input.Position startPos = mainFrame.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
         end
     end)
-
-    titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or
-            input.UserInputType == Enum.UserInputType.Touch then
-            if dragging then updateDrag(input) end
-        end
-    end)
-
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
-            input.UserInputType == Enum.UserInputType.Touch) then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             updateDrag(input)
         end
     end)
 
-    closeButton.MouseButton1Click:Connect(function()
-        destroyGUI()
-        destroyPreview()
-        pixelData = nil
-        placementActive = false
+    closeBtn.MouseButton1Click:Connect(function()
+        destroyGUI() destroyPreview()
+        pixelData = nil placementActive = false
     end)
 
-    confirmButton.MouseButton1Click:Connect(function()
+    confirmBtn.MouseButton1Click:Connect(function()
         local url = urlBox.Text
         if url == "" then return end
-
-        confirmButton.Text = "Fetching..."
-        confirmButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        confirmBtn.Text = "Fetching..."
+        confirmBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 
         task.spawn(function()
             local success, result = pcall(function()
-                return request({
-                    Url = API_URL .. url,
-                    Method = "GET"
-                })
+                return request({ Url = API_URL .. url, Method = "GET" })
             end)
 
             if not success or not result or result.StatusCode ~= 200 then
-                confirmButton.Text = "Failed! Try again"
-                confirmButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                confirmBtn.Text = "Failed! Try again"
+                confirmBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
                 task.wait(2)
-                confirmButton.Text = "Confirm"
-                confirmButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+                confirmBtn.Text = "Confirm"
+                confirmBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
                 return
             end
 
             local data = game:GetService("HttpService"):JSONDecode(result.Body)
             pixelData = data.pixels
-            lastImageURL = url
-
             destroyGUI()
             createPreviewPart(url)
-            print("Image loaded! Drag on ground to position, rotate with buttons, hit Place!")
+            print("Image loaded! Position the preview, then hit Place!")
 
+            -- Control GUI
             local controlGui = Instance.new("ScreenGui")
             controlGui.Name = "DrawControlGUI"
             controlGui.ResetOnSpawn = false
@@ -413,120 +360,68 @@ local function createURLGui()
             controlFrame.BorderSizePixel = 0
             controlFrame.BackgroundTransparency = 1
             controlFrame.Parent = controlGui
+            Instance.new("UICorner", controlFrame).CornerRadius = UDim.new(0, 12)
 
-            local controlCorner = Instance.new("UICorner")
-            controlCorner.CornerRadius = UDim.new(0, 12)
-            controlCorner.Parent = controlFrame
+            local function makeBtn(text, color, x, y, w, h)
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(0, w, 0, h)
+                btn.Position = UDim2.new(0, x, 0, y)
+                btn.BackgroundColor3 = color
+                btn.BorderSizePixel = 0
+                btn.Text = text
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                btn.TextSize = 14
+                btn.Font = Enum.Font.GothamBold
+                btn.BackgroundTransparency = 1
+                btn.TextTransparency = 1
+                btn.Parent = controlFrame
+                Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+                TweenService:Create(btn, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+                return btn
+            end
 
-            local rotateLeftBtn = Instance.new("TextButton")
-            rotateLeftBtn.Size = UDim2.new(0, 80, 0, 40)
-            rotateLeftBtn.Position = UDim2.new(0, 10, 0, 15)
-            rotateLeftBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180)
-            rotateLeftBtn.BorderSizePixel = 0
-            rotateLeftBtn.Text = "Left"
-            rotateLeftBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            rotateLeftBtn.TextSize = 14
-            rotateLeftBtn.Font = Enum.Font.GothamBold
-            rotateLeftBtn.BackgroundTransparency = 1
-            rotateLeftBtn.TextTransparency = 1
-            rotateLeftBtn.Parent = controlFrame
+            TweenService:Create(controlFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
 
-            local rotateLeftCorner = Instance.new("UICorner")
-            rotateLeftCorner.CornerRadius = UDim.new(0, 8)
-            rotateLeftCorner.Parent = rotateLeftBtn
-
-            local rotateRightBtn = Instance.new("TextButton")
-            rotateRightBtn.Size = UDim2.new(0, 80, 0, 40)
-            rotateRightBtn.Position = UDim2.new(0, 100, 0, 15)
-            rotateRightBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180)
-            rotateRightBtn.BorderSizePixel = 0
-            rotateRightBtn.Text = "Right"
-            rotateRightBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            rotateRightBtn.TextSize = 14
-            rotateRightBtn.Font = Enum.Font.GothamBold
-            rotateRightBtn.BackgroundTransparency = 1
-            rotateRightBtn.TextTransparency = 1
-            rotateRightBtn.Parent = controlFrame
-
-            local rotateRightCorner = Instance.new("UICorner")
-            rotateRightCorner.CornerRadius = UDim.new(0, 8)
-            rotateRightCorner.Parent = rotateRightBtn
-
-            local placeBtn = Instance.new("TextButton")
-            placeBtn.Size = UDim2.new(0, 80, 0, 40)
-            placeBtn.Position = UDim2.new(0, 200, 0, 15)
-            placeBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
-            placeBtn.BorderSizePixel = 0
-            placeBtn.Text = "Place!"
-            placeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            placeBtn.TextSize = 14
-            placeBtn.Font = Enum.Font.GothamBold
-            placeBtn.BackgroundTransparency = 1
-            placeBtn.TextTransparency = 1
-            placeBtn.Parent = controlFrame
-
-            local placeCorner = Instance.new("UICorner")
-            placeCorner.CornerRadius = UDim.new(0, 8)
-            placeCorner.Parent = placeBtn
-
-            local cancelBtn = Instance.new("TextButton")
-            cancelBtn.Size = UDim2.new(1, -20, 0, 30)
-            cancelBtn.Position = UDim2.new(0, 10, 0, 60)
-            cancelBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-            cancelBtn.BorderSizePixel = 0
-            cancelBtn.Text = "Cancel"
-            cancelBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            cancelBtn.TextSize = 14
-            cancelBtn.Font = Enum.Font.GothamBold
-            cancelBtn.BackgroundTransparency = 1
-            cancelBtn.TextTransparency = 1
-            cancelBtn.Parent = controlFrame
-
-            local cancelCorner = Instance.new("UICorner")
-            cancelCorner.CornerRadius = UDim.new(0, 8)
-            cancelCorner.Parent = cancelBtn
-
-            -- Fade in control GUI
-            TweenService:Create(controlFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-            TweenService:Create(rotateLeftBtn, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-            TweenService:Create(rotateRightBtn, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-            TweenService:Create(placeBtn, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-            TweenService:Create(cancelBtn, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+            local rotateLeftBtn  = makeBtn("◄ Left",  Color3.fromRGB(60, 60, 180),  10, 15, 80, 40)
+            local rotateRightBtn = makeBtn("Right ►", Color3.fromRGB(60, 60, 180), 100, 15, 80, 40)
+            local placeBtn       = makeBtn("Place!",  Color3.fromRGB(50, 180, 50), 200, 15, 80, 40)
+            local cancelBtn      = makeBtn("Cancel",  Color3.fromRGB(200, 50, 50),  10, 60, 270, 30)
 
             rotateLeftBtn.MouseButton1Click:Connect(function()
                 currentRotation = currentRotation - 90
+                if previewPart then
+                    previewPart.CFrame = CFrame.new(previewPart.Position) * CFrame.Angles(0, math.rad(currentRotation), 0)
+                end
             end)
-
             rotateRightBtn.MouseButton1Click:Connect(function()
                 currentRotation = currentRotation + 90
+                if previewPart then
+                    previewPart.CFrame = CFrame.new(previewPart.Position) * CFrame.Angles(0, math.rad(currentRotation), 0)
+                end
             end)
-
             placeBtn.MouseButton1Click:Connect(function()
                 destroyGUI()
                 task.spawn(startPlacement)
             end)
-
             cancelBtn.MouseButton1Click:Connect(function()
-                destroyGUI()
-                destroyPreview()
-                pixelData = nil
-                placementActive = false
-                currentRotation = 0
+                destroyGUI() destroyPreview()
+                pixelData = nil placementActive = false currentRotation = 0
             end)
         end)
     end)
 end
 
--- Touch drag for preview part
-UserInputService.TouchMoved:Connect(function(touch, processed)
-    if processed then return end
+-- Drag preview with mouse too
+UserInputService.InputChanged:Connect(function(input)
     if not previewPart then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and input.UserInputType ~= Enum.UserInputType.Touch then return end
 
-    local unitRay = Camera:ScreenPointToRay(touch.Position.X, touch.Position.Y)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = { LocalPlayer.Character, previewPart }
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, raycastParams)
+    local unitRay = Camera:ScreenPointToRay(input.Position.X, input.Position.Y)
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = { LocalPlayer.Character, previewPart }
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, params)
     if result then
         previewPart.CFrame = CFrame.new(result.Position.X, result.Position.Y + 0.05, result.Position.Z)
             * CFrame.Angles(0, math.rad(currentRotation), 0)
@@ -534,20 +429,13 @@ UserInputService.TouchMoved:Connect(function(touch, processed)
 end)
 
 if _G.PiggyScript and _G.PiggyScript.commands then
-    _G.PiggyScript.commands.draw = function()
-        createURLGui()
-    end
+    _G.PiggyScript.commands.draw = function() createURLGui() end
 end
 
 LocalPlayer.Chatted:Connect(function(msg)
     if msg:sub(1, #PREFIX) ~= PREFIX then return end
-    local body = msg:sub(#PREFIX + 1)
-    local parts = body:split(" ")
-    local cmd = parts[1]:lower()
-
-    if cmd == "draw" then
-        createURLGui()
-    end
+    local cmd = msg:sub(#PREFIX + 1):split(" ")[1]:lower()
+    if cmd == "draw" then createURLGui() end
 end)
 
 print("Part 3 loaded! Commands: !draw")
