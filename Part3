@@ -51,7 +51,7 @@ local function trapExistsNear(pos, radius)
     local ok, desc = pcall(function() return workspace.Map:GetDescendants() end)
     if not ok then return false end
     for _, obj in pairs(desc) do
-        if obj:IsA("BasePart") and obj.Name == "Black Hole" then
+        if obj:IsA("BasePart") and obj.Name == "Default" then
             if (obj.Position - pos).Magnitude <= radius then return true end
         end
     end
@@ -117,7 +117,7 @@ local function buildPreview(pixels, originCFrame)
         part.Anchored = true
         part.CanCollide = false
         part.CastShadow = false
-        part.BrickColor = BrickColor.new("Really black")
+        part.BrickColor = BrickColor.new("White")
         part.Material = Enum.Material.SmoothPlastic
 
         local worldPos = originCFrame:PointToWorldSpace(Vector3.new(offsetX, 0, offsetZ))
@@ -189,8 +189,8 @@ local function startPlacement()
         return false
     end
 
-    print("Placing Black Hole traps (" .. #blackPixels .. ")...")
-    equipTrap("Black Hole")
+    print("Placing Default traps (" .. #blackPixels .. ")...")
+    equipTrap("Default")
     local placed = 0
     for _, pixel in pairs(blackPixels) do
         if not placementActive then break end
@@ -430,8 +430,10 @@ local function createURLGui()
             destroyGUI()
             print("Resetting character...")
 
-            ReplicatedStorage:WaitForChild("Remotes")
-                :WaitForChild("DeathEvent"):FireServer()
+            -- Force reset via BreakJoints
+            if LocalPlayer.Character then
+                LocalPlayer.Character:BreakJoints()
+            end
 
             local newChar = LocalPlayer.CharacterAdded:Wait()
             local newHRP = newChar:WaitForChild("HumanoidRootPart", 10)
