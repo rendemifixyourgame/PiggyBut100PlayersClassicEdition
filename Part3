@@ -51,7 +51,7 @@ local function trapExistsNear(pos, radius)
     local ok, desc = pcall(function() return workspace.Map:GetDescendants() end)
     if not ok then return false end
     for _, obj in pairs(desc) do
-        if obj:IsA("BasePart") and (obj.Name == "Default" or obj.Name == "Black Hole") then
+        if obj:IsA("BasePart") and obj.Name == "Black Hole" then
             if (obj.Position - pos).Magnitude <= radius then return true end
         end
     end
@@ -107,6 +107,7 @@ local function buildPreview(pixels, originCFrame)
     previewOriginCFrame = originCFrame
 
     for _, pixel in pairs(pixels) do
+        if pixel.color ~= "black" then continue end
         local offsetX = (pixel.x - 32) * GRID_SIZE
         local offsetZ = (pixel.y - 32) * GRID_SIZE
 
@@ -116,9 +117,7 @@ local function buildPreview(pixels, originCFrame)
         part.Anchored = true
         part.CanCollide = false
         part.CastShadow = false
-        part.BrickColor = pixel.color == "black"
-            and BrickColor.new("Really black")
-            or BrickColor.new("White")
+        part.BrickColor = BrickColor.new("Really black")
         part.Material = Enum.Material.SmoothPlastic
 
         local worldPos = originCFrame:PointToWorldSpace(Vector3.new(offsetX, 0, offsetZ))
@@ -132,6 +131,7 @@ local function movePreview(newOriginCFrame)
     previewOriginCFrame = newOriginCFrame
     local idx = 1
     for _, pixel in pairs(pixelData) do
+        if pixel.color ~= "black" then continue end
         local part = previewParts[idx]
         if part then
             local offsetX = (pixel.x - 32) * GRID_SIZE
@@ -150,12 +150,9 @@ local function startPlacement()
     destroyPreview()
     placementActive = true
 
-    local whitePixels = {}
     local blackPixels = {}
     for _, pixel in pairs(pixelData) do
-        if pixel.color == "white" then
-            table.insert(whitePixels, pixel)
-        else
+        if pixel.color == "black" then
             table.insert(blackPixels, pixel)
         end
     end
@@ -192,28 +189,18 @@ local function startPlacement()
         return false
     end
 
-    print("Placing Default traps (" .. #whitePixels .. ")...")
-    equipTrap("Default")
-    local whitePlaced = 0
-    for _, pixel in pairs(whitePixels) do
-        if not placementActive then break end
-        if placeWithRetry(getWorldPos(pixel)) then whitePlaced += 1 end
-    end
-    print("Default: " .. whitePlaced .. "/" .. #whitePixels)
-
     print("Placing Black Hole traps (" .. #blackPixels .. ")...")
     equipTrap("Black Hole")
-    local blackPlaced = 0
+    local placed = 0
     for _, pixel in pairs(blackPixels) do
         if not placementActive then break end
-        if placeWithRetry(getWorldPos(pixel)) then blackPlaced += 1 end
+        if placeWithRetry(getWorldPos(pixel)) then placed += 1 end
     end
-    print("Black Hole: " .. blackPlaced .. "/" .. #blackPixels)
 
     enableMovement()
     destroyPlatform()
     placementActive = false
-    print("Done! " .. (whitePlaced + blackPlaced) .. "/" .. (#whitePixels + #blackPixels) .. " traps placed")
+    print("Done! " .. placed .. "/" .. #blackPixels .. " traps placed")
 end
 
 local function spawnControlGUI(playerGui)
@@ -436,7 +423,6 @@ local function createURLGui()
             local data = HttpService:JSONDecode(result.Body)
             pixelData = data.pixels
 
-            -- Save position
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             local savedPos = hrp and hrp.Position or Vector3.new(0, 5, 0)
@@ -444,21 +430,17 @@ local function createURLGui()
             destroyGUI()
             print("Resetting character...")
 
-            -- Force reset via DeathEvent
             ReplicatedStorage:WaitForChild("Remotes")
                 :WaitForChild("DeathEvent"):FireServer()
 
-            -- Wait for new character
             local newChar = LocalPlayer.CharacterAdded:Wait()
             local newHRP = newChar:WaitForChild("HumanoidRootPart", 10)
             local newHum = newChar:WaitForChild("Humanoid", 10)
             repeat task.wait() until newHum.Health > 0 and newHRP.Position.Y > 0
 
-            -- Teleport back
             newHRP.CFrame = CFrame.new(savedPos.X, savedPos.Y + 3, savedPos.Z)
             task.wait(0.1)
 
-            -- Build cylinder preview
             local originCFrame = CFrame.new(savedPos.X, savedPos.Y + 0.1, savedPos.Z)
                 * CFrame.Angles(0, math.rad(currentRotation), 0)
             buildPreview(pixelData, originCFrame)
@@ -469,7 +451,6 @@ local function createURLGui()
     end)
 end
 
--- Touch drag moves whole preview
 UserInputService.TouchMoved:Connect(function(touch, processed)
     if processed then return end
     if #previewParts == 0 then return end
