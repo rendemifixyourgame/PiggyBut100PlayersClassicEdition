@@ -100,7 +100,6 @@ local function destroyGUI()
     if drawGUI then drawGUI:Destroy() drawGUI = nil end
 end
 
--- preview origin is a CFrame, stored so we can reposition all pixels
 local previewOriginCFrame = nil
 
 local function buildPreview(pixels, originCFrame)
@@ -122,7 +121,6 @@ local function buildPreview(pixels, originCFrame)
             or BrickColor.new("White")
         part.Material = Enum.Material.SmoothPlastic
 
-        -- Lay cylinder flat on ground (cylinder axis is X by default)
         local worldPos = originCFrame:PointToWorldSpace(Vector3.new(offsetX, 0, offsetZ))
         part.CFrame = CFrame.new(worldPos) * CFrame.Angles(0, 0, math.rad(90))
         part.Parent = workspace
@@ -174,10 +172,11 @@ local function startPlacement()
     local function getWorldPos(pixel)
         local offsetX = (pixel.x - 32) * GRID_SIZE
         local offsetZ = (pixel.y - 32) * GRID_SIZE
+        local worldOffset = origin:VectorToWorldSpace(Vector3.new(offsetX, 0, offsetZ))
         return Vector3.new(
-            origin.Position.X + origin:VectorToWorldSpace(Vector3.new(offsetX, 0, offsetZ)).X,
+            origin.Position.X + worldOffset.X,
             origin.Position.Y + 3,
-            origin.Position.Z + origin:VectorToWorldSpace(Vector3.new(offsetX, 0, offsetZ)).Z
+            origin.Position.Z + worldOffset.Z
         )
     end
 
@@ -265,16 +264,14 @@ local function spawnControlGUI(playerGui)
     rotateLeftBtn.MouseButton1Click:Connect(function()
         currentRotation -= 90
         if previewOriginCFrame then
-            local newOrigin = CFrame.new(previewOriginCFrame.Position) * CFrame.Angles(0, math.rad(currentRotation), 0)
-            movePreview(newOrigin)
+            movePreview(CFrame.new(previewOriginCFrame.Position) * CFrame.Angles(0, math.rad(currentRotation), 0))
         end
     end)
 
     rotateRightBtn.MouseButton1Click:Connect(function()
         currentRotation += 90
         if previewOriginCFrame then
-            local newOrigin = CFrame.new(previewOriginCFrame.Position) * CFrame.Angles(0, math.rad(currentRotation), 0)
-            movePreview(newOrigin)
+            movePreview(CFrame.new(previewOriginCFrame.Position) * CFrame.Angles(0, math.rad(currentRotation), 0))
         end
     end)
 
@@ -447,8 +444,9 @@ local function createURLGui()
             destroyGUI()
             print("Resetting character...")
 
-            -- Force reset via LoadCharacter (exploit level)
-            LocalPlayer:LoadCharacter()
+            -- Force reset via DeathEvent
+            ReplicatedStorage:WaitForChild("Remotes")
+                :WaitForChild("DeathEvent"):FireServer()
 
             -- Wait for new character
             local newChar = LocalPlayer.CharacterAdded:Wait()
@@ -460,7 +458,7 @@ local function createURLGui()
             newHRP.CFrame = CFrame.new(savedPos.X, savedPos.Y + 3, savedPos.Z)
             task.wait(0.1)
 
-            -- Build cylinder pixel preview at saved position
+            -- Build cylinder preview
             local originCFrame = CFrame.new(savedPos.X, savedPos.Y + 0.1, savedPos.Z)
                 * CFrame.Angles(0, math.rad(currentRotation), 0)
             buildPreview(pixelData, originCFrame)
@@ -471,7 +469,7 @@ local function createURLGui()
     end)
 end
 
--- Touch drag moves the whole preview
+-- Touch drag moves whole preview
 UserInputService.TouchMoved:Connect(function(touch, processed)
     if processed then return end
     if #previewParts == 0 then return end
@@ -481,9 +479,8 @@ UserInputService.TouchMoved:Connect(function(touch, processed)
     rp.FilterType = Enum.RaycastFilterType.Exclude
     local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, rp)
     if result then
-        local newOrigin = CFrame.new(result.Position.X, result.Position.Y + 0.1, result.Position.Z)
-            * CFrame.Angles(0, math.rad(currentRotation), 0)
-        movePreview(newOrigin)
+        movePreview(CFrame.new(result.Position.X, result.Position.Y + 0.1, result.Position.Z)
+            * CFrame.Angles(0, math.rad(currentRotation), 0))
     end
 end)
 
