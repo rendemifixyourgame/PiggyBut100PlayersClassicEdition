@@ -248,3 +248,179 @@ LocalPlayer.Chatted:Connect(function(msg)
         game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
     end
 end)
+
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+
+local bikeActive = false
+local bikeConnections = {}
+local bikeHitbox = nil
+local bikeAnimTrack = nil
+local bikeStunCooldowns = {}
+
+local function cleanupBike()
+    bikeActive = false
+
+    for _, conn in pairs(bikeConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    bikeConnections = {}
+
+    if bikeHitbox then
+        bikeHitbox:Destroy()
+        bikeHitbox = nil
+    end
+
+    if bikeAnimTrack then
+        bikeAnimTrack:Stop()
+        bikeAnimTrack = nil
+    end
+
+    local char = LocalPlayer.Character
+    if char then
+        local animate = char:FindFirstChild("Animate")
+        if animate then animate.Disabled = false end
+
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.WalkSpeed = 16
+            hum.JumpPower = 50
+        end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 0, 1)
+        end
+    end
+
+    print("Bike mode OFF")
+end
+
+local function startBike()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
+    if not hrp or not hum then return end
+
+    bikeActive = true
+
+    local animate = char:FindFirstChild("Animate")
+    if animate then animate.Disabled = true end
+
+    local animator = hum:FindFirstChildOfClass("Animator") or hum:WaitForChild("Animator")
+    local sitAnim = Instance.new("Animation")
+    sitAnim.AnimationId = "rbxassetid://178130996"
+    bikeAnimTrack = animator:LoadAnimation(sitAnim)
+    bikeAnimTrack.Looped = true
+    bikeAnimTrack:Play()
+
+    hum.WalkSpeed = 28
+    hrp.CustomPhysicalProperties = PhysicalProperties.new(
+        0.7,
+        0.01,
+        0.1,
+        0,
+        1
+    )
+
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "BikeHitbox"
+    hitbox.Size = Vector3.new(10, 5, 10)
+    hitbox.Material = Enum.Material.ForceField
+    hitbox.BrickColor = BrickColor.new("Bright yellow")
+    hitbox.Transparency = 0.4
+    hitbox.CanCollide = false
+    hitbox.Anchored = false
+    hitbox.CFrame = hrp.CFrame
+    hitbox.Parent = workspace
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = hrp
+    weld.Part1 = hitbox
+    weld.Parent = hitbox
+
+    bikeHitbox = hitbox
+
+    local jitterConn = RunService.Heartbeat:Connect(function()
+        if not bikeActive then return end
+        local c = LocalPlayer.Character
+        if not c then return end
+        local h = c:FindFirstChild("HumanoidRootPart")
+        if not h then return end
+        local speed = Vector3.new(h.AssemblyLinearVelocity.X, 0, h.AssemblyLinearVelocity.Z).Magnitude
+        if speed < 3 then
+            local jx = (math.random() - 0.5) * 0.12
+            local jz = (math.random() - 0.5) * 0.12
+            h.CFrame = h.CFrame * CFrame.new(jx, 0, jz)
+        end
+    end)
+    table.insert(bikeConnections, jitterConn)
+
+    local hitConn = hitbox.Touched:Connect(function(hit)
+        if not bikeActive then return end
+        local c = LocalPlayer.Character
+        if not c then return end
+        local myHRP = c:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+
+        local hitChar = hit.Parent
+        if not hitChar or hitChar == c then return end
+
+        local hitPlayer = Players:GetPlayerFromCharacter(hitChar)
+        if not hitPlayer or hitPlayer == LocalPlayer then return end
+
+        local permitted = _G.PiggyScript and _G.PiggyScript.permittedPlayers or {}
+        for _, name in pairs(permitted) do
+            if name == hitPlayer.Name then return end
+        end
+
+        local now = tick()
+        if bikeStunCooldowns[hitPlayer.Name] and now - bikeStunCooldowns[hitPlayer.Name] < 2 then return end
+        bikeStunCooldowns[hitPlayer.Name] = now
+
+        local vel = myHRP.AssemblyLinearVelocity
+        local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+        local stunTime = math.clamp(math.floor(speed / 5), 2, 15)
+
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+                :WaitForChild("ChapterEvent"):FireServer("Stun", hitChar, stunTime)
+        end)
+
+        local bounceForce = math.clamp(speed * 2.5, 25, 120)
+        local bounceDir = (myHRP.Position - hitChar:GetModelCFrame().Position).Unit
+        local bounceVel = Vector3.new(bounceDir.X, 0.6, bounceDir.Z).Unit * bounceForce
+
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = bounceVel
+        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        bv.P = 1e4
+        bv.Parent = myHRP
+        Debris:AddItem(bv, 0.25)
+    end)
+    table.insert(bikeConnections, hitConn)
+
+    print("Bike mode ON")
+end
+
+if _G.PiggyScript and _G.PiggyScript.commands then
+    _G.PiggyScript.commands.bike = function()
+        if bikeActive then cleanupBike() else startBike() end
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
+    if msg:sub(1, #PREFIX) ~= PREFIX then return end
+    local cmd = msg:sub(#PREFIX + 1):split(" ")[1]:lower()
+    if cmd == "bike" then
+        if bikeActive then cleanupBike() else startBike() end
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if bikeActive then
+        cleanupBike()
+    end
+end)
