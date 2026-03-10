@@ -299,6 +299,14 @@ end
 local function startBike()
     local char = LocalPlayer.Character
     if not char then return end
+    if not char:FindFirstChild("Accessory (Bike)") then
+        print("You need the Bike accessory equipped!")
+        return
+    end
+
+local function startBike()
+    local char = LocalPlayer.Character
+    if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then return end
