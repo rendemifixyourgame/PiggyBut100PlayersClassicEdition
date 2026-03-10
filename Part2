@@ -279,16 +279,16 @@ local function startBike()
 
     hum.WalkSpeed = 28
 
-    -- BodyVelocity for slippery momentum
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e5, 0, 1e5)
-    bv.P = 1e4
+    bv.P = 1e18  -- strong enough to fully override Humanoid movement
     bv.Velocity = Vector3.new(0, 0, 0)
     bv.Parent = hrp
     bikeBodyVel = bv
 
     local FRICTION = 0.97
-    local MOMENTUM_STRENGTH = 0.5
+    local MOMENTUM_STRENGTH = 1.2
+    local MAX_SPEED = 60
 
     local momentumConn = RunService.Heartbeat:Connect(function(dt)
         if not bikeActive then return end
@@ -300,12 +300,9 @@ local function startBike()
 
         local moveDir = h.MoveDirection
         if moveDir.Magnitude > 0 then
-            -- Add input force scaled by walkspeed
-            bikeMomentum = bikeMomentum + moveDir * h.WalkSpeed * MOMENTUM_STRENGTH
-            -- Cap max speed to prevent infinite acceleration
-            local maxSpeed = h.WalkSpeed * 3
-            if bikeMomentum.Magnitude > maxSpeed then
-                bikeMomentum = bikeMomentum.Unit * maxSpeed
+            bikeMomentum = bikeMomentum + moveDir * MOMENTUM_STRENGTH
+            if bikeMomentum.Magnitude > MAX_SPEED then
+                bikeMomentum = bikeMomentum.Unit * MAX_SPEED
             end
         end
         -- Bleed momentum each frame
