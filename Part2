@@ -282,13 +282,13 @@ local function startBike()
     -- BodyVelocity for slippery momentum
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e5, 0, 1e5)
-    bv.P = 1500 -- lower P = more slippery feel, less fighting against physics
+    bv.P = 1e4
     bv.Velocity = Vector3.new(0, 0, 0)
     bv.Parent = hrp
     bikeBodyVel = bv
 
-    local FRICTION = 0.97          -- higher = more slippery
-    local MOMENTUM_STRENGTH = 0.4  -- how fast speed builds
+    local FRICTION = 0.97
+    local MOMENTUM_STRENGTH = 0.5
 
     local momentumConn = RunService.Heartbeat:Connect(function(dt)
         if not bikeActive then return end
@@ -379,19 +379,9 @@ local function startBike()
             Debris:AddItem(bounceBV, 0.25)
         end
 
-        -- Check players
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local theirHRP = player.Character:FindFirstChild("HumanoidRootPart")
-                if theirHRP and (theirHRP.Position - myHRP.Position).Magnitude < 6 then
-                    processHit(player.Character)
-                end
-            end
-        end
-
-        -- Check NPCs (Piggy and others)
+        -- Only check NPCs (Piggy)
         for _, obj in pairs(workspace:GetChildren()) do
-            if obj ~= c and obj:FindFirstChild("Humanoid") then
+            if obj ~= c and obj:FindFirstChild("Humanoid") and not Players:GetPlayerFromCharacter(obj) then
                 local npcHRP = obj:FindFirstChild("HumanoidRootPart")
                 if npcHRP and (npcHRP.Position - myHRP.Position).Magnitude < 6 then
                     processHit(obj)
