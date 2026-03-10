@@ -3,6 +3,8 @@ if game.PlaceId ~= 133500464897785 then return end
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
 local LocalPlayer = Players.LocalPlayer
 
 local autoclickGUI = nil
@@ -10,9 +12,7 @@ local autoclicking = false
 local autoclickId = 0
 
 local function createAutoclickGUI()
-    if autoclickGUI then
-        autoclickGUI:Destroy()
-    end
+    if autoclickGUI then autoclickGUI:Destroy() end
 
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -150,7 +150,6 @@ local function createAutoclickGUI()
     toggleButton.MouseButton1Click:Connect(function()
         isOn = not isOn
         autoclicking = isOn
-
         if isOn then
             TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 50)}):Play()
             TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -32.5, 0.5, -15)}):Play()
@@ -186,9 +185,7 @@ local function createAutoclickGUI()
             dragStart = input.Position
             startPos = mainFrame.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
@@ -200,9 +197,7 @@ local function createAutoclickGUI()
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            update(input)
-        end
+        if input == dragInput and dragging then update(input) end
     end)
 
     mainFrame.BackgroundTransparency = 1
@@ -225,57 +220,6 @@ local function createAutoclickGUI()
     TweenService:Create(toggleText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 end
 
-if _G.PiggyScript and _G.PiggyScript.commands then
-    _G.PiggyScript.commands.autoclick = function()
-        createAutoclickGUI()
-    end
-    _G.PiggyScript.commands.george = function()
-        game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
-    end
-end
-
-local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
-
-LocalPlayer.Chatted:Connect(function(msg)
-    if msg:sub(1, #PREFIX) ~= PREFIX then return end
-    local body = msg:sub(#PREFIX + 1)
-    local parts = body:split(" ")
-    local cmd = parts[1]:lower()
-
-    if cmd == "autoclick" then
-        createAutoclickGUI()
-    elseif cmd == "george" then
-        game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
-    end
-end)
-
-            bv.P = 1e4
-        bv.Parent = myHRP
-        Debris:AddItem(bv, 0.25)
-    end)
-    table.insert(bikeConnections, hitConn)
-
-    print("Bike mode ON")
-end
-
-if _G.PiggyScript and _G.PiggyScript.commands then
-    _G.PiggyScript.commands.bike = function()
-        if bikeActive then cleanupBike() else startBike() end
-    end
-end
-
-LocalPlayer.Chatted:Connect(function(msg)
-    local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
-    if msg:sub(1, #PREFIX) ~= PREFIX then return end
-    local cmd = msg:sub(#PREFIX + 1):split(" ")[1]:lower()
-    if cmd == "bike" then
-        if bikeActive then cleanupBike() else startBike() end
-    end
-end)
-
-local RunService = game:GetService("RunService")
-local Debris = game:GetService("Debris")
-
 local bikeActive = false
 local bikeConnections = {}
 local bikeHitbox = nil
@@ -284,51 +228,31 @@ local bikeStunCooldowns = {}
 
 local function cleanupBike()
     bikeActive = false
-
     for _, conn in pairs(bikeConnections) do
         pcall(function() conn:Disconnect() end)
     end
     bikeConnections = {}
-
-    if bikeHitbox then
-        bikeHitbox:Destroy()
-        bikeHitbox = nil
-    end
-
-    if bikeAnimTrack then
-        bikeAnimTrack:Stop()
-        bikeAnimTrack = nil
-    end
-
+    if bikeHitbox then bikeHitbox:Destroy() bikeHitbox = nil end
+    if bikeAnimTrack then bikeAnimTrack:Stop() bikeAnimTrack = nil end
     local char = LocalPlayer.Character
     if char then
         local animate = char:FindFirstChild("Animate")
         if animate then animate.Disabled = false end
-
         local hum = char:FindFirstChild("Humanoid")
-        if hum then
-            hum.WalkSpeed = 16
-            hum.JumpPower = 50
-        end
-
+        if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 end
         local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 0, 1)
-        end
+        if hrp then hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 0, 1) end
     end
-
     print("Bike mode OFF")
 end
 
 local function startBike()
     local char = LocalPlayer.Character
     if not char then return end
-
     if not char:FindFirstChild("Accessory (Bike)") then
         print("You need the Bike accessory equipped!")
         return
     end
-
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then return end
@@ -346,13 +270,7 @@ local function startBike()
     bikeAnimTrack:Play()
 
     hum.WalkSpeed = 28
-    hrp.CustomPhysicalProperties = PhysicalProperties.new(
-        0.7,
-        0.01,
-        0.1,
-        0,
-        1
-    )
+    hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.01, 0.1, 0, 1)
 
     local hitbox = Instance.new("Part")
     hitbox.Name = "BikeHitbox"
@@ -369,7 +287,6 @@ local function startBike()
     weld.Part0 = hrp
     weld.Part1 = hitbox
     weld.Parent = hitbox
-
     bikeHitbox = hitbox
 
     local jitterConn = RunService.Heartbeat:Connect(function()
@@ -380,9 +297,7 @@ local function startBike()
         if not h then return end
         local speed = Vector3.new(h.AssemblyLinearVelocity.X, 0, h.AssemblyLinearVelocity.Z).Magnitude
         if speed < 3 then
-            local jx = (math.random() - 0.5) * 0.12
-            local jz = (math.random() - 0.5) * 0.12
-            h.CFrame = h.CFrame * CFrame.new(jx, 0, jz)
+            h.CFrame = h.CFrame * CFrame.new((math.random() - 0.5) * 0.12, 0, (math.random() - 0.5) * 0.12)
         end
     end)
     table.insert(bikeConnections, jitterConn)
@@ -393,35 +308,27 @@ local function startBike()
         if not c then return end
         local myHRP = c:FindFirstChild("HumanoidRootPart")
         if not myHRP then return end
-
         local hitChar = hit.Parent
         if not hitChar or hitChar == c then return end
-
         local hitPlayer = Players:GetPlayerFromCharacter(hitChar)
         if not hitPlayer or hitPlayer == LocalPlayer then return end
-
         local permitted = _G.PiggyScript and _G.PiggyScript.permittedPlayers or {}
         for _, name in pairs(permitted) do
             if name == hitPlayer.Name then return end
         end
-
         local now = tick()
         if bikeStunCooldowns[hitPlayer.Name] and now - bikeStunCooldowns[hitPlayer.Name] < 2 then return end
         bikeStunCooldowns[hitPlayer.Name] = now
-
         local vel = myHRP.AssemblyLinearVelocity
         local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
         local stunTime = math.clamp(math.floor(speed / 5), 2, 15)
-
         pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
                 :WaitForChild("ChapterEvent"):FireServer("Stun", hitChar, stunTime)
         end)
-
         local bounceForce = math.clamp(speed * 2.5, 25, 120)
         local bounceDir = (myHRP.Position - hitChar:GetModelCFrame().Position).Unit
         local bounceVel = Vector3.new(bounceDir.X, 0.6, bounceDir.Z).Unit * bounceForce
-
         local bv = Instance.new("BodyVelocity")
         bv.Velocity = bounceVel
         bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
@@ -435,22 +342,33 @@ local function startBike()
 end
 
 if _G.PiggyScript and _G.PiggyScript.commands then
+    _G.PiggyScript.commands.autoclick = function()
+        createAutoclickGUI()
+    end
+    _G.PiggyScript.commands.george = function()
+        game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
+    end
     _G.PiggyScript.commands.bike = function()
         if bikeActive then cleanupBike() else startBike() end
     end
 end
 
+local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
+
 LocalPlayer.Chatted:Connect(function(msg)
-    local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
     if msg:sub(1, #PREFIX) ~= PREFIX then return end
-    local cmd = msg:sub(#PREFIX + 1):split(" ")[1]:lower()
-    if cmd == "bike" then
+    local body = msg:sub(#PREFIX + 1)
+    local parts = body:split(" ")
+    local cmd = parts[1]:lower()
+    if cmd == "autoclick" then
+        createAutoclickGUI()
+    elseif cmd == "george" then
+        game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
+    elseif cmd == "bike" then
         if bikeActive then cleanupBike() else startBike() end
     end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
-    if bikeActive then
-        cleanupBike()
-    end
+    if bikeActive then cleanupBike() end
 end)
