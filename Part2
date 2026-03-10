@@ -224,6 +224,8 @@ local bikeActive = false
 local bikeConnections = {}
 local bikeHitbox = nil
 local bikeAnimTrack = nil
+local bikeBodyVel = nil
+local bikeMomentum = Vector3.new(0, 0, 0)
 local bikeStunCooldowns = {}
 
 local function cleanupBike()
@@ -233,15 +235,15 @@ local function cleanupBike()
     end
     bikeConnections = {}
     if bikeHitbox then bikeHitbox:Destroy() bikeHitbox = nil end
+    if bikeBodyVel then bikeBodyVel:Destroy() bikeBodyVel = nil end
     if bikeAnimTrack then bikeAnimTrack:Stop() bikeAnimTrack = nil end
+    bikeMomentum = Vector3.new(0, 0, 0)
     local char = LocalPlayer.Character
     if char then
         local animate = char:FindFirstChild("Animate")
         if animate then animate.Disabled = false end
         local hum = char:FindFirstChild("Humanoid")
         if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 0, 1) end
     end
     print("Bike mode OFF")
 end
@@ -270,7 +272,34 @@ local function startBike()
     bikeAnimTrack:Play()
 
     hum.WalkSpeed = 28
-    hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.01, 0.1, 0, 1)
+
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e5, 0, 1e5)
+    bv.P = 1e4
+    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.Parent = hrp
+    bikeBodyVel = bv
+
+    local FRICTION = 0.96
+    local MOMENTUM_STRENGTH = 0.3
+
+    local momentumConn = RunService.Heartbeat:Connect(function()
+        if not bikeActive then return end
+        local c = LocalPlayer.Character
+        if not c then return end
+        local h = c:FindFirstChild("Humanoid")
+        local r = c:FindFirstChild("HumanoidRootPart")
+        if not h or not r then return end
+        local moveDir = h.MoveDirection
+        if moveDir.Magnitude > 0 then
+            bikeMomentum = bikeMomentum + moveDir * h.WalkSpeed * MOMENTUM_STRENGTH
+        end
+        bikeMomentum = bikeMomentum * FRICTION
+        if bikeBodyVel and bikeBodyVel.Parent then
+            bikeBodyVel.Velocity = bikeMomentum
+        end
+    end)
+    table.insert(bikeConnections, momentumConn)
 
     local hitbox = Instance.new("Part")
     hitbox.Name = "BikeHitbox"
@@ -289,19 +318,6 @@ local function startBike()
     weld.Parent = hitbox
     bikeHitbox = hitbox
 
-    local jitterConn = RunService.Heartbeat:Connect(function()
-        if not bikeActive then return end
-        local c = LocalPlayer.Character
-        if not c then return end
-        local h = c:FindFirstChild("HumanoidRootPart")
-        if not h then return end
-        local speed = Vector3.new(h.AssemblyLinearVelocity.X, 0, h.AssemblyLinearVelocity.Z).Magnitude
-        if speed < 3 then
-            h.CFrame = h.CFrame * CFrame.new((math.random() - 0.5) * 0.12, 0, (math.random() - 0.5) * 0.12)
-        end
-    end)
-    table.insert(bikeConnections, jitterConn)
-
     local hitConn = hitbox.Touched:Connect(function(hit)
         if not bikeActive then return end
         local c = LocalPlayer.Character
@@ -319,22 +335,29 @@ local function startBike()
         local now = tick()
         if bikeStunCooldowns[hitPlayer.Name] and now - bikeStunCooldowns[hitPlayer.Name] < 2 then return end
         bikeStunCooldowns[hitPlayer.Name] = now
-        local vel = myHRP.AssemblyLinearVelocity
-        local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-        local stunTime = math.clamp(math.floor(speed / 5), 2, 15)
-        pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
-                :WaitForChild("ChapterEvent"):FireServer("Stun", hitChar, stunTime)
-        end)
+
+        local speed = bikeMomentum.Magnitude
+        local stunTime = math.clamp(math.floor(speed / 5), 2, 20)
+
+        local targetHRP = hitChar:FindFirstChild("HumanoidRootPart")
+        if targetHRP then
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+                    :WaitForChild("ChapterEvent"):FireServer("Stun", "Weapon", targetHRP, false, stunTime)
+            end)
+        end
+
         local bounceForce = math.clamp(speed * 2.5, 25, 120)
         local bounceDir = (myHRP.Position - hitChar:GetModelCFrame().Position).Unit
         local bounceVel = Vector3.new(bounceDir.X, 0.6, bounceDir.Z).Unit * bounceForce
-        local bv = Instance.new("BodyVelocity")
-        bv.Velocity = bounceVel
-        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-        bv.P = 1e4
-        bv.Parent = myHRP
-        Debris:AddItem(bv, 0.25)
+        bikeMomentum = Vector3.new(bounceVel.X, 0, bounceVel.Z) * 0.8
+
+        local bounceBV = Instance.new("BodyVelocity")
+        bounceBV.Velocity = bounceVel
+        bounceBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        bounceBV.P = 1e4
+        bounceBV.Parent = myHRP
+        Debris:AddItem(bounceBV, 0.25)
     end)
     table.insert(bikeConnections, hitConn)
 
