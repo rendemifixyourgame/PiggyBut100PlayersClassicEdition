@@ -232,13 +232,7 @@ local function startLobotomy()
                     local value
                     
                     if randomChoice == 1 then
-                        value = -math.random(1000000000, 99999999999999999)
-                    elseif randomChoice == 2 then
-                        value = math.huge
-                    elseif randomChoice == 3 then
-                        value = -math.huge
-                    else
-                        value = "nil"
+                        value = -math.random(1000000000, 999999999999999999
                     end
                     
                     local stunArgs = {
@@ -254,7 +248,7 @@ local function startLobotomy()
                     end)
                 end
             end
-            task.wait()
+            task.wait(0.05)
         end
     end)
 end
