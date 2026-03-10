@@ -4,14 +4,13 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- ─────────────────────────────────────────
--- AUTOCLICK
--- ─────────────────────────────────────────
 local autoclickGUI = nil
 local autoclicking = false
 local autoclickId = 0
+local lobotomyActive = false
 
 local function createAutoclickGUI()
     if autoclickGUI then autoclickGUI:Destroy() end
@@ -222,15 +221,60 @@ local function createAutoclickGUI()
     TweenService:Create(toggleText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 end
 
--- ─────────────────────────────────────────
--- COMMANDS
--- ─────────────────────────────────────────
+local function startLobotomy()
+    lobotomyActive = true
+    
+    task.spawn(function()
+        while lobotomyActive do
+            for _, model in pairs(workspace:GetDescendants()) do
+                if model:IsA("Model") and model:FindFirstChild("Head") and model ~= LocalPlayer.Character then
+                    local randomChoice = math.random(1, 4)
+                    local value
+                    
+                    if randomChoice == 1 then
+                        value = -math.random(1000000000, 99999999999999999)
+                    elseif randomChoice == 2 then
+                        value = math.huge
+                    elseif randomChoice == 3 then
+                        value = -math.huge
+                    else
+                        value = "nil"
+                    end
+                    
+                    local stunArgs = {
+                        [1] = "Stun",
+                        [2] = "Weapon",
+                        [3] = model.Head,
+                        [4] = false,
+                        [5] = value
+                    }
+                    
+                    pcall(function()
+                        ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(stunArgs))
+                    end)
+                end
+            end
+            task.wait()
+        end
+    end)
+end
+
+local function stopLobotomy()
+    lobotomyActive = false
+end
+
 if _G.PiggyScript and _G.PiggyScript.commands then
     _G.PiggyScript.commands.autoclick = function()
         createAutoclickGUI()
     end
     _G.PiggyScript.commands.george = function()
         game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
+    end
+    _G.PiggyScript.commands.lobotomy = function()
+        startLobotomy()
+    end
+    _G.PiggyScript.commands.unlobotomy = function()
+        stopLobotomy()
     end
 end
 
@@ -246,5 +290,9 @@ LocalPlayer.Chatted:Connect(function(msg)
         createAutoclickGUI()
     elseif cmd == "george" then
         game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
+    elseif cmd == "lobotomy" then
+        startLobotomy()
+    elseif cmd == "unlobotomy" then
+        stopLobotomy()
     end
 end)
