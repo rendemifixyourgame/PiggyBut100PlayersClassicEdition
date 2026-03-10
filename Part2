@@ -249,6 +249,30 @@ LocalPlayer.Chatted:Connect(function(msg)
     end
 end)
 
+            bv.P = 1e4
+        bv.Parent = myHRP
+        Debris:AddItem(bv, 0.25)
+    end)
+    table.insert(bikeConnections, hitConn)
+
+    print("Bike mode ON")
+end
+
+if _G.PiggyScript and _G.PiggyScript.commands then
+    _G.PiggyScript.commands.bike = function()
+        if bikeActive then cleanupBike() else startBike() end
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    local PREFIX = (_G.PiggyScript and _G.PiggyScript.PREFIX) or "!"
+    if msg:sub(1, #PREFIX) ~= PREFIX then return end
+    local cmd = msg:sub(#PREFIX + 1):split(" ")[1]:lower()
+    if cmd == "bike" then
+        if bikeActive then cleanupBike() else startBike() end
+    end
+end)
+
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 
@@ -299,14 +323,12 @@ end
 local function startBike()
     local char = LocalPlayer.Character
     if not char then return end
+
     if not char:FindFirstChild("Accessory (Bike)") then
         print("You need the Bike accessory equipped!")
         return
     end
 
-local function startBike()
-    local char = LocalPlayer.Character
-    if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then return end
