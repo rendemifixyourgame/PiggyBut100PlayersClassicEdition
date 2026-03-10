@@ -249,7 +249,7 @@ local function cleanupBike()
         local animate = char:FindFirstChild("Animate")
         if animate then animate.Disabled = false end
         local hum = char:FindFirstChild("Humanoid")
-        if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 end
+        if hum then hum.JumpPower = 50 end
     end
     print("Bike mode OFF")
 end
@@ -277,11 +277,9 @@ local function startBike()
     bikeAnimTrack.Looped = true
     bikeAnimTrack:Play()
 
-    hum.WalkSpeed = 28
-
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e5, 0, 1e5)
-    bv.P = 1e18  -- strong enough to fully override Humanoid movement
+    bv.P = 1e4
     bv.Velocity = Vector3.new(0, 0, 0)
     bv.Parent = hrp
     bikeBodyVel = bv
