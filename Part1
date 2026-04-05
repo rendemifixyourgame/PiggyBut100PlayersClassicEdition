@@ -143,7 +143,7 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
             while titleLabel and titleLabel.Parent do
                 hue = (hue + 0.005) % 1
                 titleLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
-                task.wait()
+                task.wait(0.05)
             end
         end)
     end
@@ -222,7 +222,7 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
                     local equipArgs = {"EquippingTrap", cycleRef[cycleIdxRef[1]]}
                     LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
                     cycleIdxRef[1] = cycleIdxRef[1] % #cycleRef + 1
-                    task.wait()
+                    task.wait(0.05)
                 end
             end)
         end
@@ -232,7 +232,7 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
         while trapSpamming do
             local args = {[1] = "PlaceTrap"}
             ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
-            task.wait()
+            task.wait(0.05)
         end
     end)
 
@@ -257,7 +257,7 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
                 while trapSpamming do
                     local args = {[1] = "PlaceTrap"}
                     ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
-                    task.wait()
+                    task.wait(0.05)
                 end
             end)
 
@@ -356,7 +356,7 @@ end
 
 local commands = {
     cmds = function(args)
-        print("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick !cmds")
+        print("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !lobotomy, !unlobotomy, !cmds")
     end,
 
     trap = function(args)
@@ -590,24 +590,7 @@ _G.PiggyScript = {
     PREFIX = PREFIX
 }
 
-print("Chat command handler loaded! Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !cmds")
-
-task.spawn(function()
-    while task.wait(0.01) do
-        for _, model in pairs(workspace:GetDescendants()) do
-            if model:IsA("Model") then
-                local bearTrap = model:FindFirstChild("BearTrap")
-                if bearTrap and bearTrap:IsA("BasePart") then
-                    for _, child in pairs(bearTrap:GetChildren()) do
-                        if child:IsA("TouchTransmitter") then
-                            child:Destroy()
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
+print("Chat command handler loaded! Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !lobotomy, !unlobotomy, !cmds")
 
 local function createCommandGUI()
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
