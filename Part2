@@ -13,6 +13,8 @@ local autoclickId = 0
 local lobotomyActive = false
 local lobotomyId = 0
 
+local ChapterEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChapterEvent")
+
 local function createAutoclickGUI()
     if autoclickGUI then autoclickGUI:Destroy() end
 
@@ -152,12 +154,14 @@ local function createAutoclickGUI()
     toggleButton.MouseButton1Click:Connect(function()
         isOn = not isOn
         autoclicking = isOn
+
         if isOn then
             TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 50)}):Play()
             TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -32.5, 0.5, -15)}):Play()
             toggleText.Text = "ON"
             startAutoclick()
         else
+            autoclickId = autoclickId + 1
             TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
             TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2.5, 0.5, -15)}):Play()
             toggleText.Text = "OFF"
@@ -226,14 +230,14 @@ local function startLobotomy()
     lobotomyActive = true
     lobotomyId = lobotomyId + 1
     local myId = lobotomyId
-    
+
     task.spawn(function()
         while lobotomyActive and lobotomyId == myId do
-            for _, model in pairs(workspace:GetDescendants()) do
+            for _, model in pairs(workspace:GetChildren()) do
                 if model:IsA("Model") and model:FindFirstChild("Head") and model ~= LocalPlayer.Character then
                     local randomChoice = math.random(1, 4)
                     local value
-                    
+
                     if randomChoice == 1 then
                         value = -math.random(1000000000, 99999999999999999)
                     elseif randomChoice == 2 then
@@ -243,7 +247,7 @@ local function startLobotomy()
                     else
                         value = "nil"
                     end
-                    
+
                     local stunArgs = {
                         [1] = "Stun",
                         [2] = "Weapon",
@@ -251,9 +255,9 @@ local function startLobotomy()
                         [4] = false,
                         [5] = value
                     }
-                    
+
                     pcall(function()
-                        ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(stunArgs))
+                        ChapterEvent:FireServer(unpack(stunArgs))
                     end)
                 end
             end
