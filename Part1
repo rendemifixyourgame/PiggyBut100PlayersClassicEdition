@@ -468,19 +468,18 @@ local commands = {
         end
 
         if foundSkin then
+            local playerSkinList = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("SkinList")
+            local skinFrame = playerSkinList:FindFirstChild(foundSkin)
+            local buyButton = skinFrame and skinFrame:FindFirstChild("Buy")
+            if buyButton and buyButton.Visible then
+                displaySystemMessage("<font color='rgb(255,50,50)'>You don't own this Skin, please buy it first :P</font>")
+                return
+            end
             shopRemote:WaitForChild("SkinList"):WaitForChild("ShopRemote"):InvokeServer("EquippingSkin", foundSkin)
             return
         end
 
-        local guessType = "Skin/Trap"
-        for key, _ in pairs(trapNames) do
-            if input:find(key) or key:find(input) then
-                guessType = "Trap"
-                break
-            end
-        end
-
-        displaySystemMessage("<font color='rgb(255,50,50)'>You don't own this " .. guessType .. ", please buy it first :P</font>")
+        displaySystemMessage("<font color='rgb(255,50,50)'>You don't own this Skin/Trap, please buy it first :P</font>")
     end,
     
     perm = function(args)
