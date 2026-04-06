@@ -358,6 +358,9 @@ local function displaySystemMessage(text)
     end
 end
 
+
+
+
 local commands = {
     cmds = function(args)
         displaySystemMessage("Commands: !trap, !rainbow, !stun [value], !equip [name], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !cmds")
