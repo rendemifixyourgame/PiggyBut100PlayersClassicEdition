@@ -772,6 +772,11 @@ for _, skinName in ipairs(skinsToAdd) do
                 local clone = frame:Clone()
                 clone.Visible = true
                 clone.Parent = playerSkinList
+
+                local buyButton = clone:FindFirstChild("Buy")
+                if buyButton then
+                    buyButton.Visible = true
+                end
             end
         end
     end
