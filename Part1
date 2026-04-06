@@ -367,7 +367,7 @@ if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
         if msg.TextSource then
             local userId = msg.TextSource.UserId
             if userId == myUserId then
-                props.PrefixText = "[🏳️‍⚧️] " .. msg.PrefixText
+                props.PrefixText = "<font color='#F5E6C8'>[😇]</font> " .. msg.PrefixText
             elseif userId == solemUserId then
                 props.PrefixText = "<font color='#ff0000'>[Evil]</font> " .. msg.PrefixText
             end
@@ -598,16 +598,13 @@ _G.PiggyScript = {
     PREFIX = PREFIX
 }
 
-local function removeTouchTransmitters(instance)
-    if instance:IsA("TouchTransmitter") then
-        local parent = instance.Parent
-        if parent and parent.Name == "BearTrap" and parent:IsA("BasePart") then
-            instance:Destroy()
-        end
+local function disableBearTrap(instance)
+    if instance:IsA("BasePart") and instance.Name == "BearTrap" then
+        instance.CanTouch = false
     end
 end
 
-workspace.DescendantAdded:Connect(removeTouchTransmitters)
+workspace.DescendantAdded:Connect(disableBearTrap)
 
 local function createCommandGUI()
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
