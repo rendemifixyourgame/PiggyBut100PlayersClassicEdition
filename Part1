@@ -367,9 +367,9 @@ if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
         if msg.TextSource then
             local userId = msg.TextSource.UserId
             if userId == myUserId then
-                props.PrefixText = "<font color='#ffffff'>[Lament]</font> " .. msg.PrefixText
+                props.PrefixText = "<font color='#55CDFC'>[</font>🏳️‍⚧️<font color='#55CDFC'>]</font> " .. msg.PrefixText
             elseif userId == solemUserId then
-                props.PrefixText = "<font color='#000000'>[Solemn]</font> " .. msg.PrefixText
+                props.PrefixText = "<font color='#ff0000'>[Evil]</font> " .. msg.PrefixText
             end
         end
         return props
@@ -378,7 +378,7 @@ end
 
 local commands = {
     cmds = function(args)
-        displaySystemMessage("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !cmds")
+        displaySystemMessage("Commands: !trap, !rainbow, !stun [value], !equip [name], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !cmds")
     end,
 
     trap = function(args)
@@ -454,26 +454,48 @@ local commands = {
     end,
     
     equip = function(args)
-        if #args < 2 then return end
-        
-        local objectType = args[1]:lower()
-        if objectType ~= "trap" then return end
-        
-        table.remove(args, 1)
-        local trapInput = table.concat(args, " "):lower()
-        
-        local trapName = nil
-        for key, value in pairs(trapNames) do
-            if trapInput:find(key) or key:find(trapInput) then
-                trapName = value
+        if #args < 1 then return end
+
+        local input = table.concat(args, " "):lower()
+        local shopRemote = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu")
+        local trapInventory = LocalPlayer:WaitForChild("TrapInventory")
+        local skinInventory = LocalPlayer:WaitForChild("SkinInventory")
+
+        local foundTrap = nil
+        for _, item in pairs(trapInventory:GetChildren()) do
+            if item.Name:lower():find(input) or input:find(item.Name:lower()) then
+                foundTrap = item.Name
                 break
             end
         end
-        
-        if not trapName then return end
-        
-        local equipArgs = {"EquippingTrap", trapName}
-        LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainMenu"):WaitForChild("Shop"):WaitForChild("ShopMenu"):WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer(unpack(equipArgs))
+
+        if foundTrap then
+            shopRemote:WaitForChild("TrapList"):WaitForChild("ShopRemote"):InvokeServer("EquippingTrap", foundTrap)
+            return
+        end
+
+        local foundSkin = nil
+        for _, item in pairs(skinInventory:GetChildren()) do
+            if item.Name:lower():find(input) or input:find(item.Name:lower()) then
+                foundSkin = item.Name
+                break
+            end
+        end
+
+        if foundSkin then
+            shopRemote:WaitForChild("SkinList"):WaitForChild("ShopRemote"):InvokeServer("EquippingSkin", foundSkin)
+            return
+        end
+
+        local guessType = "Skin/Trap"
+        for key, _ in pairs(trapNames) do
+            if input:find(key) or key:find(input) then
+                guessType = "Trap"
+                break
+            end
+        end
+
+        displaySystemMessage("<font color='rgb(255,50,50)'>You don't own this " .. guessType .. ", please buy it first :P</font>")
     end,
     
     perm = function(args)
@@ -575,6 +597,17 @@ _G.PiggyScript = {
     commands = commands,
     PREFIX = PREFIX
 }
+
+local function removeTouchTransmitters(instance)
+    if instance:IsA("TouchTransmitter") then
+        local parent = instance.Parent
+        if parent and parent.Name == "BearTrap" and parent:IsA("BasePart") then
+            instance:Destroy()
+        end
+    end
+end
+
+workspace.DescendantAdded:Connect(removeTouchTransmitters)
 
 local function createCommandGUI()
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -744,23 +777,25 @@ local skinInventory = LocalPlayer:WaitForChild("SkinInventory")
 local skinsToAdd = {"Ren", "Pickle Rick (for minitoon)", "Mr.P", "Poley"}
 
 for _, skinName in ipairs(skinsToAdd) do
-    local stringValue = Instance.new("StringValue")
-    stringValue.Name = skinName
-    stringValue.Value = ""
-    stringValue.Parent = skinInventory
+    if not skinInventory:FindFirstChild(skinName) then
+        local stringValue = Instance.new("StringValue")
+        stringValue.Name = skinName
+        stringValue.Value = ""
+        stringValue.Parent = skinInventory
 
-    local starterSkinList = StarterGui:FindFirstChild("SkinList", true)
-    local playerSkinList = playerGui:FindFirstChild("SkinList", true)
-    if starterSkinList and playerSkinList then
-        local frame = starterSkinList:FindFirstChild(skinName)
-        if frame then
-            local clone = frame:Clone()
-            clone.Visible = true
-            clone.Parent = playerSkinList
+        local starterSkinList = StarterGui:FindFirstChild("SkinList", true)
+        local playerSkinList = playerGui:FindFirstChild("SkinList", true)
+        if starterSkinList and playerSkinList then
+            local frame = starterSkinList:FindFirstChild(skinName)
+            if frame then
+                local clone = frame:Clone()
+                clone.Visible = true
+                clone.Parent = playerSkinList
 
-            local buyButton = clone:FindFirstChild("Buy")
-            if buyButton then
-                buyButton.Visible = true
+                local buyButton = clone:FindFirstChild("Buy")
+                if buyButton then
+                    buyButton.Visible = true
+                end
             end
         end
     end
