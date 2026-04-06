@@ -13,7 +13,8 @@ local PREFIX = "!"
 local trapSpamming = false
 local trapGUI = nil
 local permittedPlayers = {}
-local stunLoopActive = false
+
+local ChapterEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChapterEvent")
 
 local numberWords = {
     zero = 0, one = 1, two = 2, three = 3, four = 4,
@@ -72,21 +73,6 @@ local function parseNumber(text)
     end
     
     return tonumber(result) or 0
-end
-
-local function isModelStunned(model)
-    if not model or not model:FindFirstChild("Humanoid") then
-        return false
-    end
-    
-    local humanoid = model.Humanoid
-    for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
-        if track.Animation and track.Animation.Name == "Stun" then
-            return true
-        end
-    end
-    
-    return false
 end
 
 local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
@@ -354,9 +340,45 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
     TweenService:Create(toggleText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 end
 
+local TextChatService = game:GetService("TextChatService")
+
+local function displaySystemMessage(text)
+    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+        local channel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXSystem")
+        channel:DisplaySystemMessage("<font face=\"GothamBold\" color=\"rgb(255, 255, 255)\">" .. text .. "</font>")
+    else
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+                ["Text"] = text,
+                ["Font"] = Enum.Font.GothamBold,
+                ["Color"] = Color3.fromRGB(255, 255, 255),
+                ["FontSize"] = Enum.FontSize.Size18
+            })
+        end)
+    end
+end
+
+if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+    local myUserId = game:GetService("Players"):GetUserIdFromNameAsync("etrn3cun5wvif87wzphm") 
+    local solemUserId = game:GetService("Players"):GetUserIdFromNameAsync("J_3tZ")
+
+    TextChatService.OnIncomingMessage = function(msg)
+        local props = Instance.new("TextChatMessageProperties")
+        if msg.TextSource then
+            local userId = msg.TextSource.UserId
+            if userId == myUserId then
+                props.PrefixText = "<font color='#ffffff'>[Lament]</font> " .. msg.PrefixText
+            elseif userId == solemUserId then
+                props.PrefixText = "<font color='#000000'>[Solemn]</font> " .. msg.PrefixText
+            end
+        end
+        return props
+    end
+end
+
 local commands = {
     cmds = function(args)
-        print("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !lobotomy, !unlobotomy, !cmds")
+        displaySystemMessage("Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !cmds")
     end,
 
     trap = function(args)
@@ -386,74 +408,35 @@ local commands = {
     
     stun = function(args, exemptPlayer)
         if #args == 0 then return end
-        
+
         local durationText = table.concat(args, " ")
         local duration = parseNumber(durationText)
-        
-        if not duration then return end
-        
-        stunLoopActive = true
-        
-        local ChapterEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChapterEvent")
 
-        local targets = {}
-        for _, model in pairs(workspace:GetChildren()) do
-            if model:IsA("Model") and model:FindFirstChild("Head") then
-                for _, desc in pairs(model:GetDescendants()) do
-                    if desc:IsA("Animation") and desc.Name == "Stun" then
-                        table.insert(targets, model)
-                        break
-                    end
-                end
+        if not duration then return end
+
+        local exemptCharacters = {LocalPlayer.Character}
+        for player, _ in pairs(permittedPlayers) do
+            if player.Character then
+                table.insert(exemptCharacters, player.Character)
             end
         end
 
-        task.spawn(function()
-            local stunAttempts = 0
-            local maxAttempts = 50
-
-            while stunLoopActive and stunAttempts < maxAttempts do
-                stunAttempts = stunAttempts + 1
-
-                local exemptCharacters = {LocalPlayer.Character}
-                for player, _ in pairs(permittedPlayers) do
-                    if player.Character then
-                        table.insert(exemptCharacters, player.Character)
+        for _, model in pairs(workspace:GetChildren()) do
+            if model:IsA("Model") and model:FindFirstChild("Head") then
+                local shouldExempt = false
+                for _, exemptChar in pairs(exemptCharacters) do
+                    if model == exemptChar then
+                        shouldExempt = true
+                        break
                     end
                 end
 
-                local allStunned = true
-
-                for _, model in pairs(targets) do
-                    if model.Parent then
-                        local shouldExempt = false
-                        for _, exemptChar in pairs(exemptCharacters) do
-                            if model == exemptChar then
-                                shouldExempt = true
-                                break
-                            end
-                        end
-
-                        if not shouldExempt then
-                            if not isModelStunned(model) then
-                                allStunned = false
-                                local stunArgs = {[1] = "Stun", [2] = "Weapon", [3] = model.Head, [4] = false, [5] = duration}
-                                ChapterEvent:FireServer(unpack(stunArgs))
-                            end
-                        end
-                    end
+                if not shouldExempt then
+                    local stunArgs = {[1] = "Stun", [2] = "Weapon", [3] = model.Head, [4] = false, [5] = duration}
+                    ChapterEvent:FireServer(unpack(stunArgs))
                 end
-
-                if allStunned then
-                    stunLoopActive = false
-                    break
-                end
-
-                task.wait(0.1)
             end
-
-            stunLoopActive = false
-        end)
+        end
     end,
     
     kill = function(args)
@@ -592,8 +575,6 @@ _G.PiggyScript = {
     commands = commands,
     PREFIX = PREFIX
 }
-
-print("Chat command handler loaded! Commands: !trap, !rainbow, !stun [value], !equip trap [type], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !lobotomy, !unlobotomy, !cmds")
 
 local function createCommandGUI()
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
