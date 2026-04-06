@@ -598,13 +598,15 @@ _G.PiggyScript = {
     PREFIX = PREFIX
 }
 
-local function disableBearTrap(instance)
+workspace.DescendantAdded:Connect(function(instance)
     if instance:IsA("BasePart") and instance.Name == "BearTrap" then
-        instance.CanTouch = false
+        task.defer(function()
+            if instance.Parent then
+                instance.CanTouch = false
+            end
+        end)
     end
-end
-
-workspace.DescendantAdded:Connect(disableBearTrap)
+end)
 
 local function createCommandGUI()
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
