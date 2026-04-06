@@ -358,24 +358,6 @@ local function displaySystemMessage(text)
     end
 end
 
-if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-    local myUserId = game:GetService("Players"):GetUserIdFromNameAsync("etrn3cun5wvif87wzphm") 
-    local solemUserId = game:GetService("Players"):GetUserIdFromNameAsync("J_3tZ")
-
-    TextChatService.OnIncomingMessage = function(msg)
-        local props = Instance.new("TextChatMessageProperties")
-        if msg.TextSource then
-            local userId = msg.TextSource.UserId
-            if userId == myUserId then
-                props.PrefixText = "<font color='#F5E6C8'>[😇]</font> " .. msg.PrefixText
-            elseif userId == solemUserId then
-                props.PrefixText = "<font color='#ff0000'>[Evil]</font> " .. msg.PrefixText
-            end
-        end
-        return props
-    end
-end
-
 local commands = {
     cmds = function(args)
         displaySystemMessage("Commands: !trap, !rainbow, !stun [value], !equip [name], !kill traitor, !perm [user], !unperm [user], !autoclick, !george, !cmds")
@@ -790,11 +772,6 @@ for _, skinName in ipairs(skinsToAdd) do
                 local clone = frame:Clone()
                 clone.Visible = true
                 clone.Parent = playerSkinList
-
-                local buyButton = clone:FindFirstChild("Buy")
-                if buyButton then
-                    buyButton.Visible = true
-                end
             end
         end
     end
