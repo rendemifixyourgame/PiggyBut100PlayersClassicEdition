@@ -367,7 +367,7 @@ if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
         if msg.TextSource then
             local userId = msg.TextSource.UserId
             if userId == myUserId then
-                props.PrefixText = "<font color='#55CDFC'>[</font>🏳️‍⚧️<font color='#55CDFC'>]</font> " .. msg.PrefixText
+                props.PrefixText = "[🏳️‍⚧️] " .. msg.PrefixText
             elseif userId == solemUserId then
                 props.PrefixText = "<font color='#ff0000'>[Evil]</font> " .. msg.PrefixText
             end
