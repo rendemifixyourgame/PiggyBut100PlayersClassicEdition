@@ -419,16 +419,9 @@ local commands = {
             end
         end
 
-        for _, model in pairs(workspace:GetChildren()) do
-            stunModel(model)
-        end
-
-        local map = workspace:FindFirstChild("Map")
-        if map then
-            for _, model in pairs(map:GetDescendants()) do
-                if model:FindFirstChild("Humanoid") then
-                    stunModel(model)
-                end
+        for _, model in pairs(workspace:GetDescendants()) do
+            if model:IsA("Model") and model:FindFirstChild("Head") then
+                stunModel(model)
             end
         end
     end,
