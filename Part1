@@ -410,6 +410,7 @@ local commands = {
             return false
         end
 
+        local pending = {}
         local exemptCharacters = {LocalPlayer.Character}
         for player, _ in pairs(permittedPlayers) do
             if player.Character then
@@ -417,17 +418,23 @@ local commands = {
             end
         end
 
-        local pending = {}
+        local function isExempt(model)
+            for _, exemptChar in pairs(exemptCharacters) do
+                if model == exemptChar then return true end
+            end
+            return false
+        end
+
         for _, model in pairs(workspace:GetChildren()) do
-            if model:IsA("Model") and model:FindFirstChild("Head") then
-                local shouldExempt = false
-                for _, exemptChar in pairs(exemptCharacters) do
-                    if model == exemptChar then
-                        shouldExempt = true
-                        break
-                    end
-                end
-                if not shouldExempt then
+            if model:IsA("Model") and model:FindFirstChild("Head") and not isExempt(model) then
+                table.insert(pending, model)
+            end
+        end
+
+        local map = workspace:FindFirstChild("Map")
+        if map then
+            for _, model in pairs(map:GetDescendants()) do
+                if model:IsA("Model") and model:FindFirstChild("Head") and model:FindFirstChild("Humanoid") and not isExempt(model) then
                     table.insert(pending, model)
                 end
             end
