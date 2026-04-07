@@ -399,18 +399,6 @@ local commands = {
 
         if not duration then return end
 
-        local function isStunned(model)
-            local humanoid = model:FindFirstChild("Humanoid")
-            if not humanoid then return false end
-            for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
-                if track.Animation and track.Animation.AnimationId == "rbxassetid://118971224687115" then
-                    return true
-                end
-            end
-            return false
-        end
-
-        local pending = {}
         local exemptCharacters = {LocalPlayer.Character}
         for player, _ in pairs(permittedPlayers) do
             if player.Character then
@@ -425,36 +413,24 @@ local commands = {
             return false
         end
 
-        for _, model in pairs(workspace:GetChildren()) do
+        local function stunModel(model)
             if model:IsA("Model") and model:FindFirstChild("Head") and not isExempt(model) then
-                table.insert(pending, model)
+                ChapterEvent:FireServer("Stun", "Weapon", model.Head, false, duration)
             end
+        end
+
+        for _, model in pairs(workspace:GetChildren()) do
+            stunModel(model)
         end
 
         local map = workspace:FindFirstChild("Map")
         if map then
             for _, model in pairs(map:GetDescendants()) do
-                if model:IsA("Model") and model:FindFirstChild("Head") and model:FindFirstChild("Humanoid") and not isExempt(model) then
-                    table.insert(pending, model)
+                if model:FindFirstChild("Humanoid") then
+                    stunModel(model)
                 end
             end
         end
-
-        task.spawn(function()
-            while #pending > 0 do
-                for i = #pending, 1, -1 do
-                    local model = pending[i]
-                    if not model.Parent then
-                        table.remove(pending, i)
-                    elseif isStunned(model) then
-                        table.remove(pending, i)
-                    else
-                        ChapterEvent:FireServer("Stun", "Weapon", model.Head, false, duration)
-                    end
-                end
-                task.wait(0.05)
-            end
-        end)
     end,
     
     kill = function(args)
