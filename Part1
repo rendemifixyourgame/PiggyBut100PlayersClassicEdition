@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 local PREFIX = "!"
@@ -15,6 +16,29 @@ local trapGUI = nil
 local permittedPlayers = {}
 
 local ChapterEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChapterEvent")
+
+local isPC = UserInputService.KeyboardEnabled
+local SETTINGS_FILE = "piggy_settings.json"
+local DEFAULT_KEYBIND = "C"
+
+local function loadKeybind()
+    local ok, result = pcall(function()
+        if isfile(SETTINGS_FILE) then
+            local data = HttpService:JSONDecode(readfile(SETTINGS_FILE))
+            return data.keybind or DEFAULT_KEYBIND
+        end
+        return DEFAULT_KEYBIND
+    end)
+    return ok and result or DEFAULT_KEYBIND
+end
+
+local function saveKeybind(key)
+    pcall(function()
+        writefile(SETTINGS_FILE, HttpService:JSONEncode({keybind = key}))
+    end)
+end
+
+local currentKeybind = loadKeybind()
 
 local numberWords = {
     zero = 0, one = 1, two = 2, three = 3, four = 4,
@@ -200,7 +224,7 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
     
     local isOn = true
     trapSpamming = true
-    
+
     local function startCycle()
         if rainbow and cycleRef and cycleIdxRef then
             task.spawn(function()
@@ -214,71 +238,157 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
         end
     end
 
-    task.spawn(function()
-        while trapSpamming do
-            local args = {[1] = "PlaceTrap"}
-            ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
-            task.wait(0.05)
-        end
-    end)
+    local function startTrapSpam()
+        task.spawn(function()
+            while trapSpamming do
+                local args = {[1] = "PlaceTrap"}
+                ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
+                task.wait(0.05)
+            end
+        end)
+        startCycle()
+    end
 
-    startCycle()
-    
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(1, 0, 1, 0)
-    toggleButton.BackgroundTransparency = 1
-    toggleButton.Text = ""
-    toggleButton.Parent = toggleBg
-    
-    toggleButton.MouseButton1Click:Connect(function()
-        isOn = not isOn
-        trapSpamming = isOn
-        
-        if isOn then
-            TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 50)}):Play()
-            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -32.5, 0.5, -15)}):Play()
-            toggleText.Text = "ON"
-            
-            task.spawn(function()
-                while trapSpamming do
-                    local args = {[1] = "PlaceTrap"}
-                    ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(args))
-                    task.wait(0.05)
+    if isPC then
+        local keybindFrame = Instance.new("Frame")
+        keybindFrame.Size = UDim2.new(0, 80, 0, 35)
+        keybindFrame.Position = UDim2.new(1, -80, 0.5, -17.5)
+        keybindFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        keybindFrame.BorderSizePixel = 0
+        keybindFrame.Parent = toggleFrame
+
+        local keybindCorner = Instance.new("UICorner")
+        keybindCorner.CornerRadius = UDim.new(0, 8)
+        keybindCorner.Parent = keybindFrame
+
+        local keybindLabel = Instance.new("TextLabel")
+        keybindLabel.Size = UDim2.new(1, 0, 1, 0)
+        keybindLabel.BackgroundTransparency = 1
+        keybindLabel.Text = currentKeybind
+        keybindLabel.TextColor3 = Color3.fromRGB(50, 200, 50)
+        keybindLabel.TextSize = 16
+        keybindLabel.Font = Enum.Font.GothamBold
+        keybindLabel.Parent = keybindFrame
+
+        local editingKeybind = false
+        local lastClickTime = 0
+
+        keybindFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                local now = tick()
+                if now - lastClickTime < 0.4 then
+                    editingKeybind = true
+                    keybindLabel.Text = "..."
+                    keybindLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
                 end
-            end)
+                lastClickTime = now
+            end
+        end)
 
-            startCycle()
-        else
-            TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
-            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2.5, 0.5, -15)}):Play()
-            toggleText.Text = "OFF"
-        end
-    end)
+        UserInputService.InputBegan:Connect(function(input, processed)
+            if processed then return end
+
+            if editingKeybind then
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    local keyName = input.KeyCode.Name
+                    if #keyName == 1 then
+                        currentKeybind = keyName:upper()
+                        _G.PiggyScript.keybind = currentKeybind
+                        saveKeybind(currentKeybind)
+                        keybindLabel.Text = currentKeybind
+                        keybindLabel.TextColor3 = trapSpamming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+                        editingKeybind = false
+                    end
+                end
+            elseif input.UserInputType == Enum.UserInputType.Keyboard then
+                if input.KeyCode.Name:upper() == (_G.PiggyScript and _G.PiggyScript.keybind or currentKeybind) then
+                    trapSpamming = not trapSpamming
+                    if trapSpamming then
+                        startTrapSpam()
+                    end
+                    keybindLabel.TextColor3 = trapSpamming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+                end
+            end
+        end)
+
+        trapSpamming = true
+        startTrapSpam()
+    else
+        local toggleBg = Instance.new("Frame")
+        toggleBg.Size = UDim2.new(0, 80, 0, 35)
+        toggleBg.Position = UDim2.new(1, -80, 0.5, -17.5)
+        toggleBg.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        toggleBg.BorderSizePixel = 0
+        toggleBg.Parent = toggleFrame
+
+        local toggleBgCorner = Instance.new("UICorner")
+        toggleBgCorner.CornerRadius = UDim.new(0.5, 0)
+        toggleBgCorner.Parent = toggleBg
+
+        local toggleIndicator = Instance.new("Frame")
+        toggleIndicator.Size = UDim2.new(0, 30, 0, 30)
+        toggleIndicator.Position = UDim2.new(1, -32.5, 0.5, -15)
+        toggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        toggleIndicator.BorderSizePixel = 0
+        toggleIndicator.Parent = toggleBg
+
+        local indicatorCorner = Instance.new("UICorner")
+        indicatorCorner.CornerRadius = UDim.new(0.5, 0)
+        indicatorCorner.Parent = toggleIndicator
+
+        local toggleText = Instance.new("TextLabel")
+        toggleText.Size = UDim2.new(1, -35, 1, 0)
+        toggleText.Position = UDim2.new(0, 10, 0, 0)
+        toggleText.BackgroundTransparency = 1
+        toggleText.Text = "ON"
+        toggleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        toggleText.TextSize = 14
+        toggleText.Font = Enum.Font.GothamBold
+        toggleText.TextXAlignment = Enum.TextXAlignment.Left
+        toggleText.Parent = toggleBg
+
+        isOn = true
+        startTrapSpam()
+
+        local toggleButton = Instance.new("TextButton")
+        toggleButton.Size = UDim2.new(1, 0, 1, 0)
+        toggleButton.BackgroundTransparency = 1
+        toggleButton.Text = ""
+        toggleButton.Parent = toggleBg
+
+        toggleButton.MouseButton1Click:Connect(function()
+            isOn = not isOn
+            trapSpamming = isOn
+            if isOn then
+                TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 50)}):Play()
+                TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -32.5, 0.5, -15)}):Play()
+                toggleText.Text = "ON"
+                startTrapSpam()
+            else
+                TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
+                TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2.5, 0.5, -15)}):Play()
+                toggleText.Text = "OFF"
+            end
+        end)
+
+        TweenService:Create(toggleBg, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(toggleIndicator, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(toggleText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    end
     
     closeButton.MouseButton1Click:Connect(function()
         trapSpamming = false
-        
-        local fadeOut = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-        local fadeOutTitle = TweenService:Create(titleBar, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-        local fadeOutLabel = TweenService:Create(titleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
-        local fadeOutClose = TweenService:Create(closeButton, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1, TextTransparency = 1})
-        local fadeOutToggleFrame = TweenService:Create(toggleFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-        local fadeOutToggleLabel = TweenService:Create(toggleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
-        local fadeOutToggleBg = TweenService:Create(toggleBg, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-        local fadeOutToggleIndicator = TweenService:Create(toggleIndicator, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-        local fadeOutToggleText = TweenService:Create(toggleText, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
-        
-        fadeOut:Play()
-        fadeOutTitle:Play()
-        fadeOutLabel:Play()
-        fadeOutClose:Play()
-        fadeOutToggleFrame:Play()
-        fadeOutToggleLabel:Play()
-        fadeOutToggleBg:Play()
-        fadeOutToggleIndicator:Play()
-        fadeOutToggleText:Play()
-        
-        fadeOut.Completed:Connect(function()
+
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(titleBar, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(titleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1}):Play()
+        TweenService:Create(closeButton, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+        TweenService:Create(toggleFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(toggleLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+
+        local fade = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+        fade:Play()
+        fade.Completed:Connect(function()
             screenGui:Destroy()
             trapGUI = nil
         end)
@@ -326,18 +436,12 @@ local function createTrapGUI(rainbow, cycleRef, cycleIdxRef)
     closeButton.BackgroundTransparency = 1
     closeButton.TextTransparency = 1
     toggleLabel.TextTransparency = 1
-    toggleBg.BackgroundTransparency = 1
-    toggleIndicator.BackgroundTransparency = 1
-    toggleText.TextTransparency = 1
-    
+
     TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
     TweenService:Create(titleBar, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
     TweenService:Create(titleLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
     TweenService:Create(closeButton, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
     TweenService:Create(toggleLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-    TweenService:Create(toggleBg, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(toggleIndicator, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(toggleText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 end
 
 local TextChatService = game:GetService("TextChatService")
@@ -414,7 +518,7 @@ local commands = {
         end
 
         local function stunModel(model)
-            if model:IsA("Model") and model:FindFirstChild("Head") and not isExempt(model) then
+            if model:IsA("Model") and model:FindFirstChild("Head") and not isExempt(model) and not model:FindFirstChild("Traitor") then
                 ChapterEvent:FireServer("Stun", "Weapon", model.Head, false, duration)
             end
         end
@@ -428,14 +532,10 @@ local commands = {
     
     kill = function(args)
         if #args == 0 or args[1]:lower() ~= "traitor" then return end
-        
-        for _, model in pairs(workspace:GetChildren()) do
-            if model:IsA("Model") and model:FindFirstChild("Torso") then
-                local traitorValue = model:FindFirstChild("Traitor")
-                if traitorValue and traitorValue:IsA("StringValue") then
-                    local killArgs = {[1] = "Stun", [2] = "Weapon", [3] = model.Torso, [4] = false, [5] = 20}
-                    ReplicatedStorage:WaitForChild("Remotes", 9e9):WaitForChild("ChapterEvent", 9e9):FireServer(unpack(killArgs))
-                end
+
+        for _, model in pairs(workspace:GetDescendants()) do
+            if model:IsA("Model") and model:FindFirstChild("Torso") and model:FindFirstChild("Traitor") then
+                ChapterEvent:FireServer("Stun", "Weapon", model.Torso, false, 20)
             end
         end
     end,
@@ -581,7 +681,9 @@ end
 _G.PiggyScript = {
     permittedPlayers = permittedPlayers,
     commands = commands,
-    PREFIX = PREFIX
+    PREFIX = PREFIX,
+    keybind = currentKeybind,
+    saveKeybind = saveKeybind
 }
 
 workspace.DescendantAdded:Connect(function(instance)
