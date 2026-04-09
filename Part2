@@ -153,6 +153,7 @@ local function createAutoclickGUI(forceKeybind)
 
         local editingKeybind = false
         local lastClickTime = 0
+        local guiActive = true
 
         keybindFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -167,7 +168,7 @@ local function createAutoclickGUI(forceKeybind)
         end)
 
         UserInputService.InputBegan:Connect(function(input, processed)
-            if processed then return end
+            if not guiActive or processed then return end
 
             if editingKeybind then
                 if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -253,6 +254,7 @@ local function createAutoclickGUI(forceKeybind)
     closeButton.MouseButton1Click:Connect(function()
         autoclicking = false
         autoclickId = autoclickId + 1
+        if isPC or forceKeybind then guiActive = false end
         autoclickGUI:Destroy()
         autoclickGUI = nil
     end)
