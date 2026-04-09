@@ -130,12 +130,15 @@ local function createAutoclickGUI(forceKeybind)
         end
     end
 
+    local guiActive = true
+
     if isPC or forceKeybind then
         local keybindFrame = Instance.new("Frame")
         keybindFrame.Size = UDim2.new(0, 80, 0, 35)
         keybindFrame.Position = UDim2.new(1, -80, 0.5, -17.5)
         keybindFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
         keybindFrame.BorderSizePixel = 0
+        keybindFrame.BackgroundTransparency = 1
         keybindFrame.Parent = toggleFrame
 
         local keybindCorner = Instance.new("UICorner")
@@ -149,11 +152,11 @@ local function createAutoclickGUI(forceKeybind)
         keybindLabel.TextColor3 = Color3.fromRGB(50, 200, 50)
         keybindLabel.TextSize = 16
         keybindLabel.Font = Enum.Font.GothamBold
+        keybindLabel.TextTransparency = 1
         keybindLabel.Parent = keybindFrame
 
         local editingKeybind = false
         local lastClickTime = 0
-        local guiActive = true
 
         keybindFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -192,6 +195,9 @@ local function createAutoclickGUI(forceKeybind)
 
         autoclicking = true
         setOn(true)
+
+        TweenService:Create(keybindFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(keybindLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
     else
         local toggleBg = Instance.new("Frame")
         toggleBg.Size = UDim2.new(0, 80, 0, 35)
@@ -254,7 +260,7 @@ local function createAutoclickGUI(forceKeybind)
     closeButton.MouseButton1Click:Connect(function()
         autoclicking = false
         autoclickId = autoclickId + 1
-        if isPC or forceKeybind then guiActive = false end
+        guiActive = false
         autoclickGUI:Destroy()
         autoclickGUI = nil
     end)
