@@ -12,7 +12,24 @@ local autoclickId = 0
 
 local ChapterEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChapterEvent")
 
-local function createAutoclickGUI()
+local isPC = UserInputService.KeyboardEnabled
+
+local function loadKeybind()
+    return (_G.PiggyScript and _G.PiggyScript.keybind) or "C"
+end
+
+local function saveKeybind(key)
+    if _G.PiggyScript then
+        _G.PiggyScript.keybind = key
+        if _G.PiggyScript.saveKeybind then
+            _G.PiggyScript.saveKeybind(key)
+        end
+    end
+end
+
+local currentKeybind = loadKeybind()
+
+local function createAutoclickGUI(forceKeybind)
     if autoclickGUI then autoclickGUI:Destroy() end
 
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -89,42 +106,6 @@ local function createAutoclickGUI()
     toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
     toggleLabel.Parent = toggleFrame
 
-    local toggleBg = Instance.new("Frame")
-    toggleBg.Size = UDim2.new(0, 80, 0, 35)
-    toggleBg.Position = UDim2.new(1, -80, 0.5, -17.5)
-    toggleBg.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-    toggleBg.BorderSizePixel = 0
-    toggleBg.Parent = toggleFrame
-
-    local toggleBgCorner = Instance.new("UICorner")
-    toggleBgCorner.CornerRadius = UDim.new(0.5, 0)
-    toggleBgCorner.Parent = toggleBg
-
-    local toggleIndicator = Instance.new("Frame")
-    toggleIndicator.Size = UDim2.new(0, 30, 0, 30)
-    toggleIndicator.Position = UDim2.new(1, -32.5, 0.5, -15)
-    toggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    toggleIndicator.BorderSizePixel = 0
-    toggleIndicator.Parent = toggleBg
-
-    local indicatorCorner = Instance.new("UICorner")
-    indicatorCorner.CornerRadius = UDim.new(0.5, 0)
-    indicatorCorner.Parent = toggleIndicator
-
-    local toggleText = Instance.new("TextLabel")
-    toggleText.Size = UDim2.new(1, -35, 1, 0)
-    toggleText.Position = UDim2.new(0, 10, 0, 0)
-    toggleText.BackgroundTransparency = 1
-    toggleText.Text = "ON"
-    toggleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleText.TextSize = 14
-    toggleText.Font = Enum.Font.GothamBold
-    toggleText.TextXAlignment = Enum.TextXAlignment.Left
-    toggleText.Parent = toggleBg
-
-    local isOn = true
-    autoclicking = true
-
     local function startAutoclick()
         autoclickId = autoclickId + 1
         local myId = autoclickId
@@ -140,30 +121,134 @@ local function createAutoclickGUI()
         end)
     end
 
-    startAutoclick()
-
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(1, 0, 1, 0)
-    toggleButton.BackgroundTransparency = 1
-    toggleButton.Text = ""
-    toggleButton.Parent = toggleBg
-
-    toggleButton.MouseButton1Click:Connect(function()
-        isOn = not isOn
-        autoclicking = isOn
-
-        if isOn then
-            TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 50)}):Play()
-            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -32.5, 0.5, -15)}):Play()
-            toggleText.Text = "ON"
-            startAutoclick()
-        else
+    local function setOn(state)
+        autoclicking = state
+        if not state then
             autoclickId = autoclickId + 1
-            TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
-            TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2.5, 0.5, -15)}):Play()
-            toggleText.Text = "OFF"
+        else
+            startAutoclick()
         end
-    end)
+    end
+
+    if isPC or forceKeybind then
+        local keybindFrame = Instance.new("Frame")
+        keybindFrame.Size = UDim2.new(0, 80, 0, 35)
+        keybindFrame.Position = UDim2.new(1, -80, 0.5, -17.5)
+        keybindFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        keybindFrame.BorderSizePixel = 0
+        keybindFrame.Parent = toggleFrame
+
+        local keybindCorner = Instance.new("UICorner")
+        keybindCorner.CornerRadius = UDim.new(0, 8)
+        keybindCorner.Parent = keybindFrame
+
+        local keybindLabel = Instance.new("TextLabel")
+        keybindLabel.Size = UDim2.new(1, 0, 1, 0)
+        keybindLabel.BackgroundTransparency = 1
+        keybindLabel.Text = currentKeybind
+        keybindLabel.TextColor3 = Color3.fromRGB(50, 200, 50)
+        keybindLabel.TextSize = 16
+        keybindLabel.Font = Enum.Font.GothamBold
+        keybindLabel.Parent = keybindFrame
+
+        local editingKeybind = false
+        local lastClickTime = 0
+
+        keybindFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                local now = tick()
+                if now - lastClickTime < 0.4 then
+                    editingKeybind = true
+                    keybindLabel.Text = "..."
+                    keybindLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+                end
+                lastClickTime = now
+            end
+        end)
+
+        UserInputService.InputBegan:Connect(function(input, processed)
+            if processed then return end
+
+            if editingKeybind then
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    local keyName = input.KeyCode.Name
+                    if #keyName == 1 then
+                        currentKeybind = keyName:upper()
+                        saveKeybind(currentKeybind)
+                        keybindLabel.Text = currentKeybind
+                        keybindLabel.TextColor3 = autoclicking and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+                        editingKeybind = false
+                    end
+                end
+            elseif input.UserInputType == Enum.UserInputType.Keyboard then
+                if input.KeyCode.Name:upper() == currentKeybind then
+                    autoclicking = not autoclicking
+                    setOn(autoclicking)
+                    keybindLabel.TextColor3 = autoclicking and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+                end
+            end
+        end)
+
+        autoclicking = true
+        setOn(true)
+    else
+        local toggleBg = Instance.new("Frame")
+        toggleBg.Size = UDim2.new(0, 80, 0, 35)
+        toggleBg.Position = UDim2.new(1, -80, 0.5, -17.5)
+        toggleBg.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        toggleBg.BorderSizePixel = 0
+        toggleBg.Parent = toggleFrame
+
+        local toggleBgCorner = Instance.new("UICorner")
+        toggleBgCorner.CornerRadius = UDim.new(0.5, 0)
+        toggleBgCorner.Parent = toggleBg
+
+        local toggleIndicator = Instance.new("Frame")
+        toggleIndicator.Size = UDim2.new(0, 30, 0, 30)
+        toggleIndicator.Position = UDim2.new(1, -32.5, 0.5, -15)
+        toggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        toggleIndicator.BorderSizePixel = 0
+        toggleIndicator.Parent = toggleBg
+
+        local indicatorCorner = Instance.new("UICorner")
+        indicatorCorner.CornerRadius = UDim.new(0.5, 0)
+        indicatorCorner.Parent = toggleIndicator
+
+        local toggleText = Instance.new("TextLabel")
+        toggleText.Size = UDim2.new(1, -35, 1, 0)
+        toggleText.Position = UDim2.new(0, 10, 0, 0)
+        toggleText.BackgroundTransparency = 1
+        toggleText.Text = "ON"
+        toggleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        toggleText.TextSize = 14
+        toggleText.Font = Enum.Font.GothamBold
+        toggleText.TextXAlignment = Enum.TextXAlignment.Left
+        toggleText.Parent = toggleBg
+
+        local isOn = true
+        autoclicking = true
+        startAutoclick()
+
+        local toggleButton = Instance.new("TextButton")
+        toggleButton.Size = UDim2.new(1, 0, 1, 0)
+        toggleButton.BackgroundTransparency = 1
+        toggleButton.Text = ""
+        toggleButton.Parent = toggleBg
+
+        toggleButton.MouseButton1Click:Connect(function()
+            isOn = not isOn
+            setOn(isOn)
+            if isOn then
+                TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 50)}):Play()
+                TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -32.5, 0.5, -15)}):Play()
+                toggleText.Text = "ON"
+            else
+                TweenService:Create(toggleBg, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
+                TweenService:Create(toggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2.5, 0.5, -15)}):Play()
+                toggleText.Text = "OFF"
+            end
+        end)
+    end
 
     closeButton.MouseButton1Click:Connect(function()
         autoclicking = false
@@ -209,26 +294,23 @@ local function createAutoclickGUI()
     closeButton.BackgroundTransparency = 1
     closeButton.TextTransparency = 1
     toggleLabel.TextTransparency = 1
-    toggleBg.BackgroundTransparency = 1
-    toggleIndicator.BackgroundTransparency = 1
-    toggleText.TextTransparency = 1
 
     TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
     TweenService:Create(titleBar, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
     TweenService:Create(titleLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
     TweenService:Create(closeButton, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
     TweenService:Create(toggleLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-    TweenService:Create(toggleBg, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(toggleIndicator, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(toggleText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 end
 
 if _G.PiggyScript and _G.PiggyScript.commands then
     _G.PiggyScript.commands.autoclick = function()
-        createAutoclickGUI()
+        createAutoclickGUI(false)
     end
     _G.PiggyScript.commands.george = function()
         game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
+    end
+    _G.PiggyScript.commands.test = function()
+        createAutoclickGUI(true)
     end
 end
 
@@ -241,8 +323,10 @@ LocalPlayer.Chatted:Connect(function(msg)
     local cmd = parts[1]:lower()
 
     if cmd == "autoclick" then
-        createAutoclickGUI()
+        createAutoclickGUI(false)
     elseif cmd == "george" then
         game.ReplicatedStorage:WaitForChild("MoreRemotes").MorphIntoCharacter:FireServer("George", true)
+    elseif cmd == "test" then
+        createAutoclickGUI(true)
     end
 end)
